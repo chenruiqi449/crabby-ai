@@ -11,7 +11,8 @@ Crabby AI 是一个纯 PowerShell 实现的自托管 AI 助手，灵感来自 [O
 - 🎭 **可定制人格** — 在 SOUL.md 中定义助手的灵魂
 - 🔧 **内置工具** — Shell 执行、文件读写、网页搜索与抓取
 - 🧩 **技能系统** — 用 PowerShell 脚本扩展功能
-- 🌐 **Web UI** — 美观的聊天界面，浏览器开箱即用
+- 🖥️ **原生 GUI** — WPF 桌面界面，零依赖，美观暗色主题
+- 🌐 **Web UI** — 浏览器聊天界面，跨设备访问
 - ⏰ **心跳调度** — 集成 Windows 任务计划程序，7×24 自动化
 - 🔒 **隐私优先** — 一切本地运行，数据不出你的机器
 
@@ -90,13 +91,21 @@ powershell -ExecutionPolicy Bypass -File .\crabby.ps1
 .\crabby.ps1
 ```
 
+#### 原生桌面界面（推荐）
+
+```powershell
+.\crabby-gui.ps1
+```
+
+WPF 暗色主题，无需浏览器，零额外依赖。聊天后台执行，界面不卡顿。
+
 #### Web UI 模式
 
 ```powershell
 .\crabby-web.ps1
 ```
 
-自动在浏览器打开 `http://localhost:8420`，享受美观的聊天界面。
+自动在浏览器打开 `http://localhost:8420`，可用手机等其他设备访问。
 
 自定义端口：`.\crabby-web.ps1 -Port 8080`
 
@@ -334,6 +343,7 @@ memory/
 ```
 crabby-ai/
 ├── crabby.ps1              # 主入口（交互聊天/心跳模式）
+├── crabby-gui.ps1          # 原生桌面界面（WPF，零依赖）
 ├── crabby-web.ps1          # Web UI 启动脚本
 ├── setup-tools.ps1        # 文档工具依赖安装（pandoc/ImportExcel/wkhtmltopdf）
 ├── install.ps1             # 安装向导 + 心跳调度注册
