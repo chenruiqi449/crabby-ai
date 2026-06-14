@@ -67,23 +67,23 @@ $xaml = @"
         WindowStartupLocation="CenterScreen" MinWidth="600" MinHeight="450">
 
   <Window.Resources>
-    <!-- Colors -->
-    <SolidColorBrush x:Key="BgPrimary" Color="#0F1117"/>
-    <SolidColorBrush x:Key="BgSecondary" Color="#1A1B23"/>
-    <SolidColorBrush x:Key="BgTertiary" Color="#24252F"/>
-    <SolidColorBrush x:Key="BgHover" Color="#2D2E3A"/>
-    <SolidColorBrush x:Key="TextPrimary" Color="#E4E4E8"/>
-    <SolidColorBrush x:Key="TextSecondary" Color="#9A9BA6"/>
-    <SolidColorBrush x:Key="TextMuted" Color="#5C5D6B"/>
+    <!-- Colors — Light Theme -->
+    <SolidColorBrush x:Key="BgPrimary" Color="#FAFAFA"/>
+    <SolidColorBrush x:Key="BgSecondary" Color="#F5F5F5"/>
+    <SolidColorBrush x:Key="BgTertiary" Color="#EFEFEF"/>
+    <SolidColorBrush x:Key="BgHover" Color="#E8E8E8"/>
+    <SolidColorBrush x:Key="TextPrimary" Color="#1A1A1A"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#6B6B6B"/>
+    <SolidColorBrush x:Key="TextMuted" Color="#9E9E9E"/>
     <SolidColorBrush x:Key="Accent" Color="#E8653A"/>
     <SolidColorBrush x:Key="AccentLight" Color="#F0845E"/>
-    <SolidColorBrush x:Key="Success" Color="#3ECF8E"/>
-    <SolidColorBrush x:Key="Border" Color="#2E2F3A"/>
+    <SolidColorBrush x:Key="Success" Color="#2EAE6D"/>
+    <SolidColorBrush x:Key="Border" Color="#E5E5E5"/>
 
     <!-- Button Style -->
     <Style x:Key="SidebarBtn" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Foreground" Value="#9A9BA6"/>
+      <Setter Property="Foreground" Value="#6B6B6B"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Padding" Value="10,8"/>
       <Setter Property="FontSize" Value="13"/>
@@ -97,8 +97,8 @@ $xaml = @"
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Bd" Property="Background" Value="#2D2E3A"/>
-                <Setter Property="Foreground" Value="#E4E4E8"/>
+                <Setter TargetName="Bd" Property="Background" Value="#E8E8E8"/>
+                <Setter Property="Foreground" Value="#1A1A1A"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -109,7 +109,7 @@ $xaml = @"
     <!-- Title Button Style -->
     <Style x:Key="TitleBtn" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
-      <Setter Property="Foreground" Value="#9A9BA6"/>
+      <Setter Property="Foreground" Value="#6B6B6B"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Width" Value="40"/>
       <Setter Property="Height" Value="32"/>
@@ -123,8 +123,8 @@ $xaml = @"
             </Border>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Bd" Property="Background" Value="#2D2E3A"/>
-                <Setter Property="Foreground" Value="#E4E4E8"/>
+                <Setter TargetName="Bd" Property="Background" Value="#E8E8E8"/>
+                <Setter Property="Foreground" Value="#1A1A1A"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -152,8 +152,8 @@ $xaml = @"
                 <Setter TargetName="Bd" Property="Background" Value="#F0845E"/>
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="Bd" Property="Background" Value="#3A3B46"/>
-                <Setter Property="Foreground" Value="#5C5D6B"/>
+                <Setter TargetName="Bd" Property="Background" Value="#D5D5D5"/>
+                <Setter Property="Foreground" Value="#9E9E9E"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -163,7 +163,7 @@ $xaml = @"
   </Window.Resources>
 
   <!-- Main Border (window chrome) -->
-  <Border Background="#0F1117" CornerRadius="12" BorderBrush="#2E2F3A" BorderThickness="1"
+  <Border Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1"
           MouseLeftButtonDown="Border_MouseLeftButtonDown">
     <Grid>
       <Grid.ColumnDefinitions>
@@ -173,7 +173,7 @@ $xaml = @"
       </Grid.ColumnDefinitions>
 
       <!-- ====== SIDEBAR ====== -->
-      <Border Grid.Column="0" Background="#1A1B23" CornerRadius="12,0,0,12">
+      <Border Grid.Column="0" Background="#F5F5F5" CornerRadius="12,0,0,12">
         <Grid>
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -187,7 +187,7 @@ $xaml = @"
             <Border Background="#E8653A" CornerRadius="10" Width="34" Height="34">
               <TextBlock Text="🦀" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
-            <TextBlock Text="Crabby AI" FontSize="16" FontWeight="Bold" Foreground="#E4E4E8"
+            <TextBlock Text="Crabby AI" FontSize="16" FontWeight="Bold" Foreground="#1A1A1A"
                        VerticalAlignment="Center" Margin="10,0,0,0"/>
           </StackPanel>
 
@@ -200,23 +200,23 @@ $xaml = @"
           <!-- Status -->
           <StackPanel Grid.Row="3" Margin="16,0,16,16">
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="模型" FontSize="11" Foreground="#5C5D6B"/>
-              <TextBlock x:Name="LblModel" Text="—" FontSize="11" Foreground="#9A9BA6" Margin="8,0,0,0"/>
+              <TextBlock Text="模型" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock x:Name="LblModel" Text="—" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="版本" FontSize="11" Foreground="#5C5D6B"/>
-              <TextBlock Text="v1.3" FontSize="11" Foreground="#9A9BA6" Margin="8,0,0,0"/>
+              <TextBlock Text="版本" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock Text="v1.3" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="状态" FontSize="11" Foreground="#5C5D6B"/>
-              <TextBlock x:Name="LblStatus" Text="就绪" FontSize="11" Foreground="#3ECF8E" Margin="8,0,0,0"/>
+              <TextBlock Text="状态" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock x:Name="LblStatus" Text="就绪" FontSize="11" Foreground="#2EAE6D" Margin="8,0,0,0"/>
             </StackPanel>
           </StackPanel>
         </Grid>
       </Border>
 
       <!-- Divider -->
-      <Border Grid.Column="1" Background="#2E2F3A"/>
+      <Border Grid.Column="1" Background="#E5E5E5"/>
 
       <!-- ====== MAIN AREA ====== -->
       <Grid Grid.Column="2">
@@ -227,15 +227,15 @@ $xaml = @"
         </Grid.RowDefinitions>
 
         <!-- Title Bar -->
-        <Border Grid.Row="0" Background="#1A1B23" CornerRadius="0,12,0,0" Padding="20,10">
+        <Border Grid.Row="0" Background="#F5F5F5" CornerRadius="0,12,0,0" Padding="20,10">
           <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-              <TextBlock Text="Crabby AI" FontSize="14" FontWeight="SemiBold" Foreground="#E4E4E8"/>
-              <TextBlock x:Name="LblSubtitle" Text="你的本地 AI 助手" FontSize="11" Foreground="#5C5D6B"/>
+              <TextBlock Text="Crabby AI" FontSize="14" FontWeight="SemiBold" Foreground="#1A1A1A"/>
+              <TextBlock x:Name="LblSubtitle" Text="你的本地 AI 助手" FontSize="11" Foreground="#9E9E9E"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
               <Button x:Name="BtnMinimize" Style="{StaticResource TitleBtn}" Content="─"/>
@@ -247,7 +247,7 @@ $xaml = @"
 
         <!-- Messages Area -->
         <ScrollViewer Grid.Row="1" x:Name="MsgScroll" VerticalScrollBarVisibility="Auto"
-                      Padding="24,16" Background="#0F1117">
+                      Padding="24,16" Background="#FAFAFA">
           <StackPanel x:Name="MsgPanel">
             <!-- Welcome -->
             <StackPanel x:Name="WelcomePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -256,23 +256,23 @@ $xaml = @"
                       Margin="0,0,0,16">
                 <TextBlock Text="🦀" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Border>
-              <TextBlock Text="嘿，我是 Crabby" FontSize="22" FontWeight="Bold" Foreground="#E4E4E8"
+              <TextBlock Text="嘿，我是 Crabby" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A"
                          HorizontalAlignment="Center" Margin="0,0,0,8"/>
               <TextBlock Text="你的本地 AI 助手，可以控制 PowerShell、创建文档、管理文件。"
-                         FontSize="13" Foreground="#9A9BA6" HorizontalAlignment="Center"
+                         FontSize="13" Foreground="#6B6B6B" HorizontalAlignment="Center"
                          TextWrapping="Wrap" MaxWidth="360" TextAlignment="Center" Margin="0,0,0,20"/>
               <WrapPanel HorizontalAlignment="Center">
                 <Button x:Name="QuickSysInfo" Content="查看系统信息" Margin="3" Padding="10,6"
-                        Background="#24252F" Foreground="#9A9BA6" BorderThickness="1" BorderBrush="#2E2F3A"
+                        Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
                 <Button x:Name="QuickDoc" Content="创建文档" Margin="3" Padding="10,6"
-                        Background="#24252F" Foreground="#9A9BA6" BorderThickness="1" BorderBrush="#2E2F3A"
+                        Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
                 <Button x:Name="QuickWeather" Content="查天气" Margin="3" Padding="10,6"
-                        Background="#24252F" Foreground="#9A9BA6" BorderThickness="1" BorderBrush="#2E2F3A"
+                        Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
                 <Button x:Name="QuickFiles" Content="查看文件" Margin="3" Padding="10,6"
-                        Background="#24252F" Foreground="#9A9BA6" BorderThickness="1" BorderBrush="#2E2F3A"
+                        Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
               </WrapPanel>
             </StackPanel>
@@ -285,21 +285,21 @@ $xaml = @"
           <Border Background="#E8653A" CornerRadius="10" Width="28" Height="28" Margin="0,0,8,0">
             <TextBlock Text="🦀" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
-          <TextBlock x:Name="TypingText" Text="思考中..." FontSize="13" Foreground="#5C5D6B"
+          <TextBlock x:Name="TypingText" Text="思考中..." FontSize="13" Foreground="#9E9E9E"
                      VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- Input Area -->
-        <Border Grid.Row="2" Background="#1A1B23" BorderBrush="#2E2F3A" BorderThickness="0,1,0,0"
+        <Border Grid.Row="2" Background="#F5F5F5" BorderBrush="#E5E5E5" BorderThickness="0,1,0,0"
                 Padding="20,14,20,20">
           <Grid MaxWidth="760">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Border Grid.Column="0" Background="#24252F" CornerRadius="12" BorderBrush="#2E2F3A" BorderThickness="1"
+            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1"
                     x:Name="InputBorder">
-              <TextBox x:Name="InputBox" Background="Transparent" Foreground="#E4E4E8"
+              <TextBox x:Name="InputBox" Background="Transparent" Foreground="#1A1A1A"
                        BorderThickness="0" Padding="14,10"
                        FontSize="14" AcceptsReturn="False" MaxLines="1"
                        CaretBrush="#E8653A" VerticalContentAlignment="Center"/>
@@ -396,8 +396,8 @@ function Add-MessageBubble {
     # Tool calls
     foreach ($tool in $Tools) {
         $toolBorder = New-Object System.Windows.Controls.Border
-        $toolBorder.Background = "#0F1117"
-        $toolBorder.BorderBrush = "#2E2F3A"
+        $toolBorder.Background = "#F5F5F5"
+        $toolBorder.BorderBrush = "#E5E5E5"
         $toolBorder.BorderThickness = "1"
         $toolBorder.CornerRadius = "8"
         $toolBorder.Margin = "0,0,0,4"
@@ -440,7 +440,7 @@ function Add-MessageBubble {
     # Avatar
     $avatar = New-Object System.Windows.Controls.Border
     if ($Role -eq "user") {
-        $avatar.Background = "#24252F"
+        $avatar.Background = "#E5E5E5"
         $avatar.Width = "28"
         $avatar.Height = "28"
         $avatar.CornerRadius = "8"
@@ -477,8 +477,8 @@ function Add-MessageBubble {
         $bubble.Background = "#E8653A"
         [System.Windows.Controls.DockPanel]::SetDock($bubble, [System.Windows.Controls.Dock]::Right)
     } else {
-        $bubble.Background = "#1A1B23"
-        $bubble.BorderBrush = "#2E2F3A"
+        $bubble.Background = "#FFFFFF"
+        $bubble.BorderBrush = "#E5E5E5"
         $bubble.BorderThickness = "1"
     }
 
@@ -529,8 +529,8 @@ function Render-MarkdownToBlocks {
             if ($inCodeBlock) {
                 # End code block
                 $codeBlock = New-Object System.Windows.Controls.Border
-                $codeBlock.Background = "#0F1117"
-                $codeBlock.BorderBrush = "#2E2F3A"
+                $codeBlock.Background = "#F5F5F5"
+                $codeBlock.BorderBrush = "#E5E5E5"
                 $codeBlock.BorderThickness = "1"
                 $codeBlock.CornerRadius = "8"
                 $codeBlock.Padding = "10"
@@ -540,7 +540,7 @@ function Render-MarkdownToBlocks {
                 $codeText.Text = ($codeLines -join "`n")
                 $codeText.FontFamily = New-Object System.Windows.Media.FontFamily("Consolas")
                 $codeText.FontSize = "12"
-                $codeText.Foreground = "#E4E4E8"
+                $codeText.Foreground = "#1A1A1A"
                 $codeText.TextWrapping = [System.Windows.TextWrapping]::Wrap
 
                 $codeBlock.Child = $codeText
@@ -573,7 +573,7 @@ function Render-MarkdownToBlocks {
             $tb.Text = $Matches[1]
             $tb.FontSize = "14"
             $tb.FontWeight = "SemiBold"
-            $tb.Foreground = "#E4E4E8"
+            $tb.Foreground = "#1A1A1A"
             $tb.Margin = "0,8,0,2"
             $blocks += $tb
             $i++
@@ -584,7 +584,7 @@ function Render-MarkdownToBlocks {
             $tb.Text = $Matches[1]
             $tb.FontSize = "15"
             $tb.FontWeight = "SemiBold"
-            $tb.Foreground = "#E4E4E8"
+            $tb.Foreground = "#1A1A1A"
             $tb.Margin = "0,8,0,2"
             $blocks += $tb
             $i++
@@ -596,7 +596,7 @@ function Render-MarkdownToBlocks {
             $tb = New-Object System.Windows.Controls.TextBlock
             $tb.Text = "• $($Matches[1])"
             $tb.FontSize = "13"
-            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#E4E4E8" }
+            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#1A1A1A" }
             $tb.TextWrapping = [System.Windows.TextWrapping]::Wrap
             $tb.Margin = "2,1"
             $blocks += $tb
@@ -608,7 +608,7 @@ function Render-MarkdownToBlocks {
             $tb = New-Object System.Windows.Controls.TextBlock
             $tb.Text = $line
             $tb.FontSize = "13"
-            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#E4E4E8" }
+            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#1A1A1A" }
             $tb.TextWrapping = [System.Windows.TextWrapping]::Wrap
             $tb.Margin = "2,1"
             $blocks += $tb
@@ -624,7 +624,7 @@ function Render-MarkdownToBlocks {
         $tb = New-Object System.Windows.Controls.TextBlock
         $tb.Text = $display
         $tb.FontSize = "13"
-        $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#9A9BA6" }
+        $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#6B6B6B" }
         $tb.TextWrapping = [System.Windows.TextWrapping]::Wrap
         $tb.Margin = "0,1"
         $blocks += $tb
@@ -634,8 +634,8 @@ function Render-MarkdownToBlocks {
     # Unclosed code block
     if ($inCodeBlock -and $codeLines.Count -gt 0) {
         $codeBlock = New-Object System.Windows.Controls.Border
-        $codeBlock.Background = "#0F1117"
-        $codeBlock.BorderBrush = "#2E2F3A"
+        $codeBlock.Background = "#F5F5F5"
+        $codeBlock.BorderBrush = "#E5E5E5"
         $codeBlock.BorderThickness = "1"
         $codeBlock.CornerRadius = "8"
         $codeBlock.Padding = "10"
@@ -645,7 +645,7 @@ function Render-MarkdownToBlocks {
         $codeText.Text = ($codeLines -join "`n")
         $codeText.FontFamily = New-Object System.Windows.Media.FontFamily("Consolas")
         $codeText.FontSize = "12"
-        $codeText.Foreground = "#E4E4E8"
+        $codeText.Foreground = "#1A1A1A"
         $codeText.TextWrapping = [System.Windows.TextWrapping]::Wrap
 
         $codeBlock.Child = $codeText
@@ -662,11 +662,11 @@ function Set-Processing {
 
     if ($On) {
         $lblStatus.Text = "思考中..."
-        $lblStatus.Foreground = "#F5A623"
+        $lblStatus.Foreground = "#E8A030"
         $typingPanel.Visibility = [System.Windows.Visibility]::Visible
     } else {
         $lblStatus.Text = "就绪"
-        $lblStatus.Foreground = "#3ECF8E"
+        $lblStatus.Foreground = "#2EAE6D"
         $typingPanel.Visibility = [System.Windows.Visibility]::Collapsed
     }
 }
@@ -813,7 +813,7 @@ $inputBox.Add_GotFocus({
     $inputBorder.BorderBrush = "#E8653A"
 })
 $inputBox.Add_LostFocus({
-    $inputBorder.BorderBrush = "#2E2F3A"
+    $inputBorder.BorderBrush = "#E5E5E5"
 })
 
 # New chat
