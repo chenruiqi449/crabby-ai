@@ -41,7 +41,7 @@ function Invoke-CrabbyOnboard {
     $choice = Read-Host "  Enter number (1-5)"
     
     $providers = @{
-        "1" = @{ name = "siliconflow"; base_url = "https://api.siliconflow.cn/v1"; model = "Qwen/Qwen2.5-7B-Instruct" }
+        "1" = @{ name = "siliconflow"; base_url = "https://api.siliconflow.cn/v1"; model = "Qwen/Qwen3-8B" }
         "2" = @{ name = "zhipu"; base_url = "https://open.bigmodel.cn/api/paas/v4/"; model = "glm-4-flash" }
         "3" = @{ name = "deepseek"; base_url = "https://api.deepseek.com/v1"; model = "deepseek-chat" }
         "4" = @{ name = "openai"; base_url = "https://api.openai.com/v1"; model = "gpt-4o-mini" }
@@ -71,8 +71,9 @@ function Invoke-CrabbyOnboard {
             api_key = $apiKey
             model = $provider.model
             base_url = $provider.base_url
-            max_tokens = 2048
+            max_tokens = 1024
             temperature = 0.7
+            repetition_penalty = 1.1
         }
         user = @{
             name = $userName
@@ -146,6 +147,10 @@ function Invoke-CrabbyLLM {
         temperature = $Settings.llm.temperature
     }
     
+    if ($Settings.llm.repetition_penalty) {
+        $body.repetition_penalty = $Settings.llm.repetition_penalty
+    }
+    
     $headers = @{
         "Authorization" = "Bearer $($Settings.llm.api_key)"
         "Content-Type" = "application/json"
@@ -175,6 +180,10 @@ function Invoke-CrabbyChat {
         messages = $Conversation
         max_tokens = $Settings.llm.max_tokens
         temperature = $Settings.llm.temperature
+    }
+    
+    if ($Settings.llm.repetition_penalty) {
+        $body.repetition_penalty = $Settings.llm.repetition_penalty
     }
     
     if ($SupportTools) {
