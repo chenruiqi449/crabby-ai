@@ -38,7 +38,7 @@ $UserProfile = Get-CrabbyUserProfile -RootDir $RootDir
 # Banner
 function Show-Banner {
     Write-Host ""
-    Write-Host "  🦀 Crabby AI v1.0" -ForegroundColor DarkCyan
+    Write-Host "  🦀 Crabby AI v1.1" -ForegroundColor DarkCyan
     Write-Host "  ─────────────────────────────" -ForegroundColor DarkGray
     Write-Host "  Model: $($Settings.llm.model)" -ForegroundColor Gray
     Write-Host "  Provider: $($Settings.llm.provider)" -ForegroundColor Gray
@@ -97,7 +97,10 @@ $(Get-CrabbyToolsDescription)
 
 ## Instructions
 - You are Crabby, a helpful AI assistant running locally on the user's Windows machine.
-- When you need to perform actions, use the tool calling format.
+- You have FULL CONTROL of this computer via PowerShell. You can run any command, install software, manage files, configure system settings — anything the user can do in PowerShell, you can do too.
+- The shell tool maintains a persistent session: working directory, variables, and imports persist across commands. Use `cd` freely, set variables, import modules — they'll stick.
+- When the user asks you to do something, DO IT directly using shell/file tools. Don't just give instructions — execute them.
+- For dangerous operations (deleting files recursively, formatting drives, etc.), you will get a confirmation prompt. Tell the user what you're about to do and ask before using shell_confirm.
 - Keep responses concise and natural, like chatting with a friend.
 - Respond in the same language the user uses.
 "@

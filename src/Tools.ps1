@@ -3,7 +3,146 @@
     Crabby AI — Built-in Tools
 .DESCRIPTION
     Tool definitions and execution for shell, file I/O, and web operations.
+    v2.0: Persistent PowerShell session, safety guardrails, proper timeout.
 #>
+
+# ============================================================
+# Persistent PowerShell Session
+# ============================================================
+
+# Global runspace for persistent shell session
+$script:CrabbyRunspace = $null
+$script:CrabbyPipeline = $null
+
+function Initialize-CrabbyShell {
+    <#
+    .SYNOPSIS
+        Create a persistent PowerShell runspace so state (cwd, variables, modules) survives across tool calls.
+    #>
+    if ($script:CrabbyRunspace -and $script:CrabbyRunspace.RunspaceStateInfo.State -eq 'Opened') {
+        return
+    }
+    
+    $script:CrabbyRunspace = [runspacefactory]::CreateRunspace()
+    $script:CrabbyRunspace.Open()
+    
+    # Set initial working directory to user's home
+    $script:CrabbyRunspace.SessionStateProxy.SetVariable('crabby_cwd', $env:USERPROFILE)
+}
+
+function Invoke-CrabbyShellCommand {
+    param(
+        [string]$Command,
+        [int]$TimeoutSeconds = 30
+    )
+    
+    Initialize-CrabbyShell
+    
+    # Dangerous command patterns — require confirmation
+    $dangerousPatterns = @(
+        'rm\s+(-r|-rf|-recurse|/s)',
+        'Remove-Item.*-Recurse',
+        'del\s+(/s|/q|-recurse)',
+        'rmdir\s+(/s|/q)',
+        'Format-Volume',
+        'format\s+[a-z]:',
+        'Stop-Computer',
+        'Restart-Computer',
+        'Shutdown',
+        'net\s+(user|localgroup)',
+        'reg\s+(delete|add)',
+        'Remove-Service',
+        'Set-ExecutionPolicy.*Unrestricted'
+    )
+    
+    $isDangerous = $false
+    foreach ($pattern in $dangerousPatterns) {
+        if ($Command -match $pattern) {
+            $isDangerous = $true
+            break
+        }
+    }
+    
+    if ($isDangerous) {
+        return "⚠️ DANGEROUS_COMMAND_DETECTED`nThe command may cause irreversible changes:`n  $Command`n`nPlease confirm: type 'yes' to proceed, or rephrase your request."
+    }
+    
+    # Wrap command to capture cwd changes
+    $wrappedCommand = @"
+try {
+    $Command
+    `$crabby_cwd = (Get-Location).Path
+} catch {
+    Write-Error `$_.Exception.Message
+}
+"@
+    
+    # Create pipeline in the runspace
+    $pipeline = $script:CrabbyRunspace.CreatePipeline($wrappedCommand)
+    
+    # Set initial location if we have a tracked cwd
+    $trackedCwd = $script:CrabbyRunspace.SessionStateProxy.GetVariable('crabby_cwd')
+    if ($trackedCwd -and (Test-Path $trackedCwd)) {
+        $pipeline.Commands.Insert(0, [System.Management.Automation.Runspaces.Command]::new("Set-Location"))
+        $pipeline.Commands[0].Parameters.Add("Path", $trackedCwd)
+    }
+    
+    # Execute with timeout
+    $pipeline.InvokeAsync()
+    
+    $startTime = Get-Date
+    $timeoutMs = $TimeoutSeconds * 1000
+    
+    while (-not $pipeline.Output.EndOfPipeline) {
+        if (((Get-Date) - $startTime).TotalMilliseconds -gt $timeoutMs) {
+            $pipeline.Stop()
+            return "⏱️ Command timed out after $TimeoutSeconds seconds: $Command"
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    
+    # Collect output
+    $output = @()
+    foreach ($item in $pipeline.Output) {
+        $output += $item.ToString()
+    }
+    
+    $errors = @()
+    foreach ($err in $pipeline.Error) {
+        $errors += $err.ToString()
+    }
+    
+    $result = ""
+    if ($output.Count -gt 0) {
+        $result = ($output -join "`n").Trim()
+    }
+    if ($errors.Count -gt 0) {
+        $errText = ($errors -join "`n").Trim()
+        if ($errText) {
+            $result += "`n❌ $errText"
+        }
+    }
+    
+    if ($result.Length -gt 8000) {
+        $result = $result.Substring(0, 8000) + "`n... (output truncated)"
+    }
+    
+    # Update tracked cwd
+    $newCwd = $script:CrabbyRunspace.SessionStateProxy.GetVariable('crabby_cwd')
+    if ($newCwd) {
+        $script:CrabbyRunspace.SessionStateProxy.SetVariable('crabby_cwd', $newCwd)
+    }
+    
+    if ([string]::IsNullOrWhiteSpace($result)) {
+        return "✅ Command completed (no output). CWD: $(if($newCwd){$newCwd}else{$trackedCwd})"
+    }
+    
+    # Append current working directory info
+    $cwdInfo = if ($newCwd) { $newCwd } elseif ($trackedCwd) { $trackedCwd } else { "unknown" }
+    $result += "`n📂 CWD: $cwdInfo"
+    
+    return $result
+}
 
 # ============================================================
 # Tool Schema (OpenAI function calling format)
@@ -15,7 +154,7 @@ function Get-CrabbyToolsSchema {
             type = "function"
             function = @{
                 name = "shell"
-                description = "Execute a PowerShell command on the local machine. Use for system operations, running scripts, or any command-line task."
+                description = "Execute a PowerShell command on the local machine. Maintains a persistent session — variables, working directory, and module imports persist across calls. Use for system operations, running scripts, installing software, managing services, or any command-line task."
                 parameters = @{
                     type = "object"
                     properties = @{
@@ -25,7 +164,24 @@ function Get-CrabbyToolsSchema {
                         }
                         timeout = @{
                             type = "integer"
-                            description = "Timeout in seconds (default 30)"
+                            description = "Timeout in seconds (default 30, max 300)"
+                        }
+                    }
+                    required = @("command")
+                }
+            }
+        },
+        @{
+            type = "function"
+            function = @{
+                name = "shell_confirm"
+                description = "Confirm execution of a previously blocked dangerous command. Only use when the user explicitly says 'yes' to proceed."
+                parameters = @{
+                    type = "object"
+                    properties = @{
+                        command = @{
+                            type = "string"
+                            description = "The dangerous command to confirm and execute"
                         }
                     }
                     required = @("command")
@@ -48,6 +204,10 @@ function Get-CrabbyToolsSchema {
                             type = "integer"
                             description = "Number of lines to read (default: all)"
                         }
+                        offset = @{
+                            type = "integer"
+                            description = "Line number to start reading from (0-based, default: 0)"
+                        }
                     }
                     required = @("path")
                 }
@@ -57,7 +217,7 @@ function Get-CrabbyToolsSchema {
             type = "function"
             function = @{
                 name = "file_write"
-                description = "Write content to a file on the local filesystem. Creates the file if it doesn't exist."
+                description = "Write content to a file on the local filesystem. Creates the file and parent directories if they don't exist."
                 parameters = @{
                     type = "object"
                     properties = @{
@@ -93,6 +253,10 @@ function Get-CrabbyToolsSchema {
                         pattern = @{
                             type = "string"
                             description = "File pattern to filter (e.g. '*.txt', '*.ps1')"
+                        }
+                        recurse = @{
+                            type = "boolean"
+                            description = "If true, list recursively (default: false)"
                         }
                     }
                     required = @()
@@ -180,10 +344,11 @@ function Get-CrabbyToolsSchema {
 
 function Get-CrabbyToolsDescription {
     return @"
-- **shell** — Execute PowerShell commands
-- **file_read** — Read file contents
-- **file_write** — Write or append to files
-- **file_list** — List directory contents
+- **shell** — Execute PowerShell commands (persistent session, cwd & variables preserved)
+- **shell_confirm** — Confirm and execute a blocked dangerous command
+- **file_read** — Read file contents (supports offset/lines)
+- **file_write** — Write or append to files (auto-creates directories)
+- **file_list** — List directory contents (optional recursive)
 - **web_fetch** — Fetch web page content
 - **web_search** — Search the web
 - **memory_save** — Save information to persistent memory
@@ -209,7 +374,6 @@ function Invoke-CrabbyTool {
             $args = $Arguments | ConvertFrom-Json -AsHashtable
         }
         catch {
-            # Try as simple string args
             $args = @{ _raw = $Arguments }
         }
     }
@@ -218,37 +382,71 @@ function Invoke-CrabbyTool {
         switch ($Name) {
             "shell" {
                 $cmd = $args["command"]
-                $timeout = if ($args["timeout"]) { $args["timeout"] } else { 30 }
+                $timeout = if ($args["timeout"]) { [Math]::Min($args["timeout"], 300) } else { 30 }
                 
-                $output = PowerShell -Command $cmd -NoProfile 2>&1 | Out-String
-                $output = $output.Trim()
+                return Invoke-CrabbyShellCommand -Command $cmd -TimeoutSeconds $timeout
+            }
+            
+            "shell_confirm" {
+                $cmd = $args["command"]
+                # Execute without safety check since user confirmed
+                Initialize-CrabbyShell
                 
-                if ($output.Length -gt 5000) {
-                    $output = $output.Substring(0, 5000) + "`n... (output truncated)"
+                $pipeline = $script:CrabbyRunspace.CreatePipeline($cmd)
+                $trackedCwd = $script:CrabbyRunspace.SessionStateProxy.GetVariable('crabby_cwd')
+                if ($trackedCwd -and (Test-Path $trackedCwd)) {
+                    $pipeline.Commands.Insert(0, [System.Management.Automation.Runspaces.Command]::new("Set-Location"))
+                    $pipeline.Commands[0].Parameters.Add("Path", $trackedCwd)
                 }
                 
-                return $output
+                $output = $pipeline.Invoke() | Out-String
+                $errors = @()
+                foreach ($err in $pipeline.Error) {
+                    $errors += $err.ToString()
+                }
+                
+                $result = $output.Trim()
+                if ($errors.Count -gt 0) {
+                    $errText = ($errors -join "`n").Trim()
+                    if ($errText) { $result += "`n❌ $errText" }
+                }
+                
+                # Update cwd
+                try {
+                    $newCwd = $pipeline.Output | Where-Object { $_ -is [System.IO.DirectoryInfo] } | Select-Object -First 1
+                    if (-not $newCwd) {
+                        $newCwd = (Get-Location).Path
+                    }
+                } catch {}
+                
+                return $result
             }
             
             "file_read" {
                 $path = $args["path"]
                 $lines = $args["lines"]
+                $offset = if ($args["offset"]) { $args["offset"] } else { 0 }
                 
                 if (-not (Test-Path $path)) {
                     return "File not found: $path"
                 }
                 
+                $content = Get-Content $path -Encoding UTF8
+                
+                if ($offset -gt 0) {
+                    $content = $content | Select-Object -Skip $offset
+                }
                 if ($lines) {
-                    $content = Get-Content $path -TotalCount $lines -Encoding UTF8 | Out-String
-                } else {
-                    $content = Get-Content $path -Raw -Encoding UTF8
+                    $content = $content | Select-Object -First $lines
                 }
                 
-                if ($content.Length -gt 10000) {
-                    $content = $content.Substring(0, 10000) + "`n... (content truncated)"
+                $result = ($content | Out-String).Trim()
+                
+                if ($result.Length -gt 10000) {
+                    $result = $result.Substring(0, 10000) + "`n... (content truncated, use offset to read more)"
                 }
                 
-                return $content
+                return $result
             }
             
             "file_write" {
@@ -264,17 +462,26 @@ function Invoke-CrabbyTool {
                 if ($append) {
                     Add-Content $path $content -Encoding UTF8
                 } else {
-                    Set-Content $path $content -Encoding UTF8
+                    Set-Content $path $content -Encoding UTF8 -NoNewline
                 }
                 
-                return "File written successfully: $path"
+                return "✅ File written: $path ($($content.Length) chars)"
             }
             
             "file_list" {
                 $path = if ($args["path"]) { $args["path"] } else { "." }
                 $pattern = if ($args["pattern"]) { $args["pattern"] } else { "*" }
+                $recurse = $args["recurse"]
                 
-                $items = Get-ChildItem -Path $path -Filter $pattern | Select-Object Mode, LastWriteTime, Length, Name
+                $params = @{
+                    Path = $path
+                    Filter = $pattern
+                }
+                if ($recurse) {
+                    $params.Recurse = $true
+                }
+                
+                $items = Get-ChildItem @params | Select-Object Mode, LastWriteTime, @{N='Size';E={if($_.PSIsContainer){'<DIR>'}else{$_.Length}}}, Name
                 $result = ($items | Format-Table -AutoSize | Out-String).Trim()
                 
                 return $result
@@ -299,7 +506,7 @@ function Invoke-CrabbyTool {
                     return $content
                 }
                 catch {
-                    return "Failed to fetch URL: $($_.Exception.Message)"
+                    return "❌ Failed to fetch: $($_.Exception.Message)"
                 }
             }
             
@@ -307,14 +514,12 @@ function Invoke-CrabbyTool {
                 $query = $args["query"]
                 $count = if ($args["count"]) { $args["count"] } else { 5 }
                 
-                # Use DuckDuckGo HTML search (no API key needed)
                 $searchUrl = "https://html.duckduckgo.com/html/?q=$([Uri]::EscapeDataString($query))"
                 
                 try {
                     $response = Invoke-WebRequest -Uri $searchUrl -UseBasicParsing -TimeoutSec 15
                     $html = $response.Content
                     
-                    # Parse results (simple regex)
                     $results = @()
                     $regex = '<a rel="nofollow" class="result__a" href="([^"]+)">(.*?)</a>.*?<a class="result__snippet"[^>]*>(.*?)</a>'
                     $matches = [regex]::Matches($html, $regex, [System.Text.RegularExpressions.RegexOptions]::Singleline)
@@ -333,14 +538,14 @@ function Invoke-CrabbyTool {
                     return ($results -join "`n`n")
                 }
                 catch {
-                    return "Search failed: $($_.Exception.Message)"
+                    return "❌ Search failed: $($_.Exception.Message)"
                 }
             }
             
             "memory_save" {
                 $entry = $args["entry"]
                 Add-CrabbyMemory -RootDir $RootDir -Entry $entry
-                return "Saved to memory: $entry"
+                return "💾 Saved to memory: $entry"
             }
             
             "skill_run" {
@@ -351,11 +556,14 @@ function Invoke-CrabbyTool {
             }
             
             default {
-                return "Unknown tool: $Name"
+                return "❌ Unknown tool: $Name"
             }
         }
     }
     catch {
-        return "Tool error ($Name): $($_.Exception.Message)"
+        return "❌ Tool error ($Name): $($_.Exception.Message)"
     }
 }
+
+# Initialize shell on module load
+Initialize-CrabbyShell
