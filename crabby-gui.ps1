@@ -163,8 +163,7 @@ $xaml = @"
   </Window.Resources>
 
   <!-- Main Border (window chrome) -->
-  <Border Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1"
-          MouseLeftButtonDown="Border_MouseLeftButtonDown">
+  <Border x:Name="MainBorder" Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1">
     <Grid>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="220" MinWidth="180"/>
@@ -367,7 +366,7 @@ $btnMaximize.Add_Click({
 })
 
 # Drag window
-$window.Add_MouseLeftButtonDown({
+$MainBorder.Add_MouseLeftButtonDown({
     if ($_.OriginalSource -is [System.Windows.Controls.Border] -or
         $_.OriginalSource -is [System.Windows.Controls.Grid] -or
         $_.OriginalSource -is [System.Windows.Controls.StackPanel] -or
