@@ -8,14 +8,22 @@
 
 param([string]$RootDir = "")
 
+if (-not $RootDir) {
+    try {
+        $exePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+        $RootDir = Split-Path -Parent $exePath
+    } catch {}
+}
 if (-not $RootDir) { $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Definition }
 if (-not $RootDir) { $RootDir = $PSScriptRoot }
+# Sanitize RootDir
+if ($RootDir -match '[<>|"]') { $RootDir = $RootDir -replace '[<>|"]', '' }
+
 # Ensure data directories exist
 @("config", "memory", "skills") | ForEach-Object {
     $dir = Join-Path $RootDir $_
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
-
 $ErrorActionPreference = "Stop"
 
 # Load modules
