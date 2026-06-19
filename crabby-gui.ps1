@@ -35,8 +35,148 @@ $ErrorActionPreference = "Stop"
 # Load WPF assemblies
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
 
-# Load configuration
-$Settings = Get-CrabbySettings -RootDir $RootDir
+# ============================================================
+# WPF Onboarding (replaces console Read-Host for -noConsole mode)
+# ============================================================
+function Show-WpfOnboard {
+    param([string]$RootDir)
+
+    $onboardXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Crabby AI Setup" Height="420" Width="460"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen">
+  <Border Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1">
+    <StackPanel Margin="30,24,30,20">
+      <TextBlock Text="🦀 Crabby AI Setup" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A" Margin="0,0,0,4"/>
+      <TextBlock Text="First run — let's get you configured" FontSize="13" Foreground="#6B6B6B" Margin="0,0,0,20"/>
+
+      <TextBlock Text="LLM Provider" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <ComboBox x:Name="CmbProvider" FontSize="13" Height="30" Margin="0,0,0,12">
+        <ComboBoxItem Content="SiliconFlow (硅基流动) — Free" IsSelected="True"/>
+        <ComboBoxItem Content="Zhipu (智谱) — Free"/>
+        <ComboBoxItem Content="DeepSeek"/>
+        <ComboBoxItem Content="OpenAI"/>
+        <ComboBoxItem Content="Custom (OpenAI-compatible)"/>
+      </ComboBox>
+
+      <StackPanel x:Name="CustomPanel" Visibility="Collapsed" Margin="0,0,0,12">
+        <TextBlock Text="Base URL" FontSize="12" Foreground="#6B6B6B" Margin="0,0,0,4"/>
+        <TextBox x:Name="TxtBaseUrl" FontSize="13" Height="28" Margin="0,0,0,8"/>
+        <TextBlock Text="Model Name" FontSize="12" Foreground="#6B6B6B" Margin="0,0,0,4"/>
+        <TextBox x:Name="TxtModel" FontSize="13" Height="28"/>
+      </StackPanel>
+
+      <TextBlock Text="API Key" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <PasswordBox x:Name="TxtApiKey" FontSize="13" Height="28" Margin="0,0,0,12"/>
+
+      <TextBlock Text="Your Name" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <TextBox x:Name="TxtUserName" FontSize="13" Height="28" Margin="0,0,0,20"/>
+
+      <Button x:Name="BtnStart" Content="Start Chatting →" FontSize="14" FontWeight="SemiBold"
+              Height="36" Background="#E8653A" Foreground="White" BorderThickness="0"
+              Cursor="Hand"/>
+    </StackPanel>
+  </Border>
+</Window>
+"@
+
+    $onboardWin = [System.Windows.Markup.XamlReader]::Parse($onboardXaml)
+    $cmbProvider = $onboardWin.FindName("CmbProvider")
+    $customPanel = $onboardWin.FindName("CustomPanel")
+    $txtBaseUrl = $onboardWin.FindName("TxtBaseUrl")
+    $txtModel = $onboardWin.FindName("TxtModel")
+    $txtApiKey = $onboardWin.FindName("TxtApiKey")
+    $txtUserName = $onboardWin.FindName("TxtUserName")
+    $btnStart = $onboardWin.FindName("BtnStart")
+
+    $cmbProvider.Add_SelectionChanged({
+        if ($cmbProvider.SelectedIndex -eq 4) {
+            $customPanel.Visibility = [System.Windows.Visibility]::Visible
+        } else {
+            $customPanel.Visibility = [System.Windows.Visibility]::Collapsed
+        }
+    })
+
+    $script:OnboardResult = $null
+    $btnStart.Add_Click({
+        $providers = @(
+            @{ name = "siliconflow"; base_url = "https://api.siliconflow.cn/v1"; model = "Qwen/Qwen3-8B" },
+            @{ name = "zhipu"; base_url = "https://open.bigmodel.cn/api/paas/v4/"; model = "glm-4-flash" },
+            @{ name = "deepseek"; base_url = "https://api.deepseek.com/v1"; model = "deepseek-chat" },
+            @{ name = "openai"; base_url = "https://api.openai.com/v1"; model = "gpt-4o-mini" },
+            @{ name = "custom"; base_url = ""; model = "" }
+        )
+        $idx = $cmbProvider.SelectedIndex
+        $provider = $providers[$idx]
+
+        $apiKey = $txtApiKey.Password
+        $userName = $txtUserName.Text
+        if (-not $userName) { $userName = "User" }
+
+        if ($idx -eq 4) {
+            $provider.base_url = $txtBaseUrl.Text
+            $provider.model = $txtModel.Text
+        }
+
+        $script:OnboardResult = @{
+            llm = @{
+                provider = $provider.name
+                api_key = $apiKey
+                model = $provider.model
+                base_url = $provider.base_url
+                max_tokens = 1024
+                temperature = 0.7
+                repetition_penalty = 1.1
+            }
+            user = @{ name = $userName }
+        }
+
+        # Save settings
+        $configDir = Join-Path $RootDir "config"
+        if (-not (Test-Path $configDir)) { New-Item -Path $configDir -ItemType Directory -Force | Out-Null }
+        $script:OnboardResult | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $RootDir "config\settings.json") -Encoding UTF8
+
+        # Create default SOUL.md
+        $soulPath = Join-Path $RootDir "config\SOUL.md"
+        if (-not (Test-Path $soulPath)) {
+            $defaultSoul = "You are Crabby, a personal AI assistant.`nYou are helpful, witty, and slightly snarky.`nYou speak concisely and naturally."
+            Set-Content $soulPath $defaultSoul -Encoding UTF8
+        }
+
+        # Create default USER.md
+        $userPath = Join-Path $RootDir "config\USER.md"
+        if (-not (Test-Path $userPath)) {
+            Set-Content $userPath "## User Profile`n- Name: $userName" -Encoding UTF8
+        }
+
+        # Create memory
+        $memDir = Join-Path $RootDir "memory"
+        if (-not (Test-Path $memDir)) { New-Item -Path $memDir -ItemType Directory -Force | Out-Null }
+        $memFile = Join-Path $memDir "MEMORY.md"
+        if (-not (Test-Path $memFile)) { Set-Content $memFile "# Crabby Memory`n" -Encoding UTF8 }
+
+        $onboardWin.Close()
+    })
+
+    $onboardWin.ShowDialog() | Out-Null
+    return $script:OnboardResult
+}
+
+# Load configuration — use WPF onboarding instead of console Read-Host
+$settingsPath = Join-Path $RootDir "config\settings.json"
+if (Test-Path $settingsPath) {
+    $raw = Get-Content $settingsPath -Raw -Encoding UTF8
+    $Settings = $raw | ConvertFrom-Json
+} else {
+    $Settings = Show-WpfOnboard -RootDir $RootDir
+    if (-not $Settings) {
+        # User closed onboarding without completing — exit
+        return
+    }
+}
 $Soul = Get-CrabbySoul -RootDir $RootDir
 $UserProfile = Get-CrabbyUserProfile -RootDir $RootDir
 
