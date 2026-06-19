@@ -332,6 +332,7 @@ $inputBorder = $window.FindName("InputBorder")
 $lblSubtitle = $window.FindName("LblSubtitle")
 
 # Title bar buttons
+$MainBorder = $window.FindName("MainBorder")
 $btnClose = $window.FindName("BtnClose")
 $btnMinimize = $window.FindName("BtnMinimize")
 $btnMaximize = $window.FindName("BtnMaximize")

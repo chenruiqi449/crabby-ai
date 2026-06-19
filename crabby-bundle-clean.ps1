@@ -8,23 +8,18 @@
 
 param([string]$RootDir = "")
 
-if (-not $RootDir) {
-    # When running as compiled .exe, use the exe's directory
-    $exePath = [Environment]::GetCommandLineArgs()[0]
-    if ($exePath -and (Test-Path $exePath)) {
-        $RootDir = Split-Path -Parent $exePath
-    } else {
-        $RootDir = $PSScriptRoot
-    }
+if (-not $RootDir) { $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Definition }
+if (-not $RootDir) { $RootDir = $PSScriptRoot }
+# Ensure data directories exist
+@("config", "memory", "skills") | ForEach-Object {
+    $dir = Join-Path $RootDir $_
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 }
+
 $ErrorActionPreference = "Stop"
 
 # Load modules
-
-
-
-
-#region ===== LLM =====
+# === Inlined: src/LLM.ps1 ===
 <#
 .SYNOPSIS
     Crabby AI — LLM API Client
@@ -249,9 +244,8 @@ function Invoke-CrabbyChat {
     }
 }
 
-#endregion ===== LLM =====
-
-#region ===== Memory =====
+# === End: src/LLM.ps1 ===
+# === Inlined: src/Memory.ps1 ===
 <#
 .SYNOPSIS
     Crabby AI — Memory Management
@@ -392,9 +386,8 @@ function Get-CrabbyRecentConversation {
     return $entries
 }
 
-#endregion ===== Memory =====
-
-#region ===== Tools =====
+# === End: src/Memory.ps1 ===
+# === Inlined: src/Tools.ps1 ===
 <#
 .SYNOPSIS
     Crabby AI — Built-in Tools
@@ -1273,9 +1266,8 @@ function Invoke-CrabbyTool {
 # Initialize shell on module load
 Initialize-CrabbyShell
 
-#endregion ===== Tools =====
-
-#region ===== Skills =====
+# === End: src/Tools.ps1 ===
+# === Inlined: src/Skills.ps1 ===
 <#
 .SYNOPSIS
     Crabby AI — Skills System
@@ -1408,14 +1400,7 @@ Write-Output "Skill '$safeName' executed. Input: `$Input"
     return "Skill created: $skillPath"
 }
 
-#endregion ===== Skills =====
-
-
-
-# Auto-create data directories if missing
-@("$RootDir\config", "$RootDir\memory", "$RootDir\memory\conversations", "$RootDir\skills") | ForEach-Object {
-    if (-not (Test-Path $_)) { New-Item -Path $_ -ItemType Directory -Force | Out-Null }
-}
+# === End: src/Skills.ps1 ===
 
 # Load WPF assemblies
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml
@@ -1732,6 +1717,7 @@ $inputBorder = $window.FindName("InputBorder")
 $lblSubtitle = $window.FindName("LblSubtitle")
 
 # Title bar buttons
+$MainBorder = $window.FindName("MainBorder")
 $btnClose = $window.FindName("BtnClose")
 $btnMinimize = $window.FindName("BtnMinimize")
 $btnMaximize = $window.FindName("BtnMaximize")
