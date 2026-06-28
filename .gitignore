@@ -3,3 +3,7 @@ config/settings.json
 memory/conversations/
 *.log
 .env
+chunk_*.txt
+build-from-b64.ps1
+deploy-clean.ps1
+crabby-sources.json
