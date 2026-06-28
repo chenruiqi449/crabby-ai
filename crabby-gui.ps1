@@ -10,13 +10,17 @@
 param([string]$RootDir = "")
 
 if (-not $RootDir) {
+    $RootDir = $PSScriptRoot
+}
+if (-not $RootDir) {
+    $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+}
+if (-not $RootDir) {
     try {
         $exePath = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
         $RootDir = Split-Path -Parent $exePath
     } catch {}
 }
-if (-not $RootDir) { $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Definition }
-if (-not $RootDir) { $RootDir = $PSScriptRoot }
 # Sanitize RootDir
 if ($RootDir -match '[<>|"]') { $RootDir = $RootDir -replace '[<>|"]', '' }
 
