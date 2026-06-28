@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
-    Crabby AI — Native Windows GUI (WPF)
+    Crabby AI — Native Windows GUI (WPF) v1.5
 .DESCRIPTION
     Beautiful desktop chat interface using WPF. No browser, no web server, no extra dependencies.
     Just run it and chat.
+    v1.5: Fixed input box focus, added settings panel, added conversation history viewer.
 #>
 
 param([string]$RootDir = "")
@@ -50,13 +51,13 @@ function Show-WpfOnboard {
         WindowStartupLocation="CenterScreen">
   <Border Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1">
     <StackPanel Margin="30,24,30,20">
-      <TextBlock Text="🦀 Crabby AI Setup" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A" Margin="0,0,0,4"/>
-      <TextBlock Text="First run — let's get you configured" FontSize="13" Foreground="#6B6B6B" Margin="0,0,0,20"/>
+      <TextBlock Text="&#x1F980; Crabby AI Setup" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A" Margin="0,0,0,4"/>
+      <TextBlock Text="First run - let's get you configured" FontSize="13" Foreground="#6B6B6B" Margin="0,0,0,20"/>
 
       <TextBlock Text="LLM Provider" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
       <ComboBox x:Name="CmbProvider" FontSize="13" Height="30" Margin="0,0,0,12">
-        <ComboBoxItem Content="SiliconFlow (硅基流动) — Free" IsSelected="True"/>
-        <ComboBoxItem Content="Zhipu (智谱) — Free"/>
+        <ComboBoxItem Content="SiliconFlow" IsSelected="True"/>
+        <ComboBoxItem Content="Zhipu"/>
         <ComboBoxItem Content="DeepSeek"/>
         <ComboBoxItem Content="OpenAI"/>
         <ComboBoxItem Content="Custom (OpenAI-compatible)"/>
@@ -75,7 +76,7 @@ function Show-WpfOnboard {
       <TextBlock Text="Your Name" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
       <TextBox x:Name="TxtUserName" FontSize="13" Height="28" Margin="0,0,0,20"/>
 
-      <Button x:Name="BtnStart" Content="Start Chatting →" FontSize="14" FontWeight="SemiBold"
+      <Button x:Name="BtnStart" Content="Start Chatting" FontSize="14" FontWeight="SemiBold"
               Height="36" Background="#E8653A" Foreground="White" BorderThickness="0"
               Cursor="Hand"/>
     </StackPanel>
@@ -165,7 +166,7 @@ function Show-WpfOnboard {
     return $script:OnboardResult
 }
 
-# Load configuration — use WPF onboarding instead of console Read-Host
+# Load configuration
 $settingsPath = Join-Path $RootDir "config\settings.json"
 if (Test-Path $settingsPath) {
     $raw = Get-Content $settingsPath -Raw -Encoding UTF8
@@ -173,7 +174,6 @@ if (Test-Path $settingsPath) {
 } else {
     $Settings = Show-WpfOnboard -RootDir $RootDir
     if (-not $Settings) {
-        # User closed onboarding without completing — exit
         return
     }
 }
@@ -181,11 +181,12 @@ $Soul = Get-CrabbySoul -RootDir $RootDir
 $UserProfile = Get-CrabbyUserProfile -RootDir $RootDir
 
 # ============================================================
-# Conversation State
+# Helper: Build system prompt
 # ============================================================
-
-$script:Conversation = @(
-    @{ role = "system"; content = @"
+function Build-SystemPrompt {
+    $Soul = Get-CrabbySoul -RootDir $RootDir
+    $UserProfile = Get-CrabbyUserProfile -RootDir $RootDir
+    return @"
 $Soul
 
 ## User Profile
@@ -199,18 +200,25 @@ $(Get-CrabbyToolsDescription)
 
 ## Instructions
 - You are Crabby, a helpful AI assistant running locally on the user's Windows machine.
-- You have FULL CONTROL of this computer via PowerShell. You can run any command, install software, manage files, configure system settings — anything the user can do in PowerShell, you can do too.
+- You have FULL CONTROL of this computer via PowerShell. You can run any command, install software, manage files, configure system settings - anything the user can do in PowerShell, you can do too.
 - The shell tool maintains a persistent session: working directory, variables, and imports persist across commands.
-- When the user asks you to do something, DO IT directly using shell/file tools. Don't just give instructions — execute them.
+- When the user asks you to do something, DO IT directly using shell/file tools. Don't just give instructions - execute them.
 - For dangerous operations, you will get a confirmation prompt. Tell the user what you're about to do and ask before using shell_confirm.
 - Keep responses concise and natural, like chatting with a friend.
 - Respond in the same language the user uses.
 "@
-    }
+}
+
+# ============================================================
+# Conversation State
+# ============================================================
+
+$script:Conversation = @(
+    @{ role = "system"; content = (Build-SystemPrompt) }
 )
 
 # ============================================================
-# XAML — Window Definition
+# XAML - Window Definition (v1.4)
 # ============================================================
 
 $xaml = @"
@@ -222,11 +230,8 @@ $xaml = @"
         WindowStartupLocation="CenterScreen" MinWidth="600" MinHeight="450">
 
   <Window.Resources>
-    <!-- Colors — Light Theme -->
     <SolidColorBrush x:Key="BgPrimary" Color="#FAFAFA"/>
     <SolidColorBrush x:Key="BgSecondary" Color="#F5F5F5"/>
-    <SolidColorBrush x:Key="BgTertiary" Color="#EFEFEF"/>
-    <SolidColorBrush x:Key="BgHover" Color="#E8E8E8"/>
     <SolidColorBrush x:Key="TextPrimary" Color="#1A1A1A"/>
     <SolidColorBrush x:Key="TextSecondary" Color="#6B6B6B"/>
     <SolidColorBrush x:Key="TextMuted" Color="#9E9E9E"/>
@@ -235,7 +240,6 @@ $xaml = @"
     <SolidColorBrush x:Key="Success" Color="#2EAE6D"/>
     <SolidColorBrush x:Key="Border" Color="#E5E5E5"/>
 
-    <!-- Button Style -->
     <Style x:Key="SidebarBtn" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Foreground" Value="#6B6B6B"/>
@@ -261,7 +265,6 @@ $xaml = @"
       </Setter>
     </Style>
 
-    <!-- Title Button Style -->
     <Style x:Key="TitleBtn" TargetType="Button">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Foreground" Value="#6B6B6B"/>
@@ -287,7 +290,6 @@ $xaml = @"
       </Setter>
     </Style>
 
-    <!-- Send Button Style -->
     <Style x:Key="SendBtn" TargetType="Button">
       <Setter Property="Background" Value="#E8653A"/>
       <Setter Property="Foreground" Value="White"/>
@@ -315,9 +317,79 @@ $xaml = @"
         </Setter.Value>
       </Setter>
     </Style>
+
+    <Style x:Key="HistoryItemBtn" TargetType="Button">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="#6B6B6B"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#E8E8E8"/>
+                <Setter Property="Foreground" Value="#1A1A1A"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="DialogBtn" TargetType="Button">
+      <Setter Property="Background" Value="#E8653A"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="16,8"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#F0845E"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
+    <Style x:Key="DialogCancelBtn" TargetType="Button">
+      <Setter Property="Background" Value="#EFEFEF"/>
+      <Setter Property="Foreground" Value="#6B6B6B"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="16,8"/>
+      <Setter Property="FontSize" Value="13"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="#E0E0E0"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
   </Window.Resources>
 
-  <!-- Main Border (window chrome) -->
   <Border x:Name="MainBorder" Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1">
     <Grid>
       <Grid.ColumnDefinitions>
@@ -332,6 +404,7 @@ $xaml = @"
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
@@ -339,7 +412,7 @@ $xaml = @"
           <!-- Logo -->
           <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="18,22,0,16">
             <Border Background="#E8653A" CornerRadius="10" Width="34" Height="34">
-              <TextBlock Text="🦀" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <TextBlock Text="C" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <TextBlock Text="Crabby AI" FontSize="16" FontWeight="Bold" Foreground="#1A1A1A"
                        VerticalAlignment="Center" Margin="10,0,0,0"/>
@@ -347,23 +420,43 @@ $xaml = @"
 
           <!-- Actions -->
           <StackPanel Grid.Row="1" Margin="12,0,12,0">
-            <Button x:Name="BtnNewChat" Style="{StaticResource SidebarBtn}" Content="✦  新对话" Margin="0,2"/>
-            <Button x:Name="BtnReset" Style="{StaticResource SidebarBtn}" Content="↻  清除上下文" Margin="0,2"/>
+            <Button x:Name="BtnNewChat" Style="{StaticResource SidebarBtn}" Content="+  New Chat" Margin="0,2"/>
+            <Button x:Name="BtnHistory" Style="{StaticResource SidebarBtn}" Content="&#x1F4C1;  History" Margin="0,2"/>
+            <Button x:Name="BtnSettings" Style="{StaticResource SidebarBtn}" Content="&#x2699;  Settings" Margin="0,2"/>
+            <Button x:Name="BtnReset" Style="{StaticResource SidebarBtn}" Content="&#x21BB;  Clear Context" Margin="0,2"/>
           </StackPanel>
 
+          <!-- History Panel (hidden by default) -->
+          <Border Grid.Row="2" x:Name="HistoryPanel" Visibility="Collapsed" Margin="12,4,12,4"
+                  Background="#FFFFFF" CornerRadius="8" BorderBrush="#E5E5E5" BorderThickness="1"
+                  MaxHeight="300">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+              <Border Grid.Row="0" BorderBrush="#E5E5E5" BorderThickness="0,0,0,1" Padding="10,6">
+                <TextBlock Text="Chat History" FontSize="11" FontWeight="SemiBold" Foreground="#9E9E9E"/>
+              </Border>
+              <ScrollViewer Grid.Row="1" x:Name="HistoryScroll" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="HistoryList" Margin="4"/>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+
           <!-- Status -->
-          <StackPanel Grid.Row="3" Margin="16,0,16,16">
+          <StackPanel Grid.Row="4" Margin="16,0,16,16">
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="模型" FontSize="11" Foreground="#9E9E9E"/>
-              <TextBlock x:Name="LblModel" Text="—" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
+              <TextBlock Text="Model" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock x:Name="LblModel" Text="-" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="版本" FontSize="11" Foreground="#9E9E9E"/>
-              <TextBlock Text="v1.3" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
+              <TextBlock Text="Version" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock Text="v1.5" FontSize="11" Foreground="#6B6B6B" Margin="8,0,0,0"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,4">
-              <TextBlock Text="状态" FontSize="11" Foreground="#9E9E9E"/>
-              <TextBlock x:Name="LblStatus" Text="就绪" FontSize="11" Foreground="#2EAE6D" Margin="8,0,0,0"/>
+              <TextBlock Text="Status" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock x:Name="LblStatus" Text="Ready" FontSize="11" Foreground="#2EAE6D" Margin="8,0,0,0"/>
             </StackPanel>
           </StackPanel>
         </Grid>
@@ -389,12 +482,12 @@ $xaml = @"
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" VerticalAlignment="Center">
               <TextBlock Text="Crabby AI" FontSize="14" FontWeight="SemiBold" Foreground="#1A1A1A"/>
-              <TextBlock x:Name="LblSubtitle" Text="你的本地 AI 助手" FontSize="11" Foreground="#9E9E9E"/>
+              <TextBlock x:Name="LblSubtitle" Text="Your local AI assistant" FontSize="11" Foreground="#9E9E9E"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-              <Button x:Name="BtnMinimize" Style="{StaticResource TitleBtn}" Content="─"/>
-              <Button x:Name="BtnMaximize" Style="{StaticResource TitleBtn}" Content="□"/>
-              <Button x:Name="BtnClose" Style="{StaticResource TitleBtn}" Content="✕"/>
+              <Button x:Name="BtnMinimize" Style="{StaticResource TitleBtn}" Content="-"/>
+              <Button x:Name="BtnMaximize" Style="{StaticResource TitleBtn}" Content="[]"/>
+              <Button x:Name="BtnClose" Style="{StaticResource TitleBtn}" Content="X"/>
             </StackPanel>
           </Grid>
         </Border>
@@ -408,24 +501,24 @@ $xaml = @"
                         Margin="0,80,0,0">
               <Border Background="#E8653A" CornerRadius="20" Width="72" Height="72" HorizontalAlignment="Center"
                       Margin="0,0,0,16">
-                <TextBlock Text="🦀" FontSize="36" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Text="C" FontSize="36" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
               </Border>
-              <TextBlock Text="嘿，我是 Crabby" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A"
+              <TextBlock Text="Hey, I'm Crabby" FontSize="22" FontWeight="Bold" Foreground="#1A1A1A"
                          HorizontalAlignment="Center" Margin="0,0,0,8"/>
-              <TextBlock Text="你的本地 AI 助手，可以控制 PowerShell、创建文档、管理文件。"
+              <TextBlock Text="Your local AI assistant. I can run PowerShell, create documents, manage files and more."
                          FontSize="13" Foreground="#6B6B6B" HorizontalAlignment="Center"
                          TextWrapping="Wrap" MaxWidth="360" TextAlignment="Center" Margin="0,0,0,20"/>
               <WrapPanel HorizontalAlignment="Center">
-                <Button x:Name="QuickSysInfo" Content="查看系统信息" Margin="3" Padding="10,6"
+                <Button x:Name="QuickSysInfo" Content="System Info" Margin="3" Padding="10,6"
                         Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
-                <Button x:Name="QuickDoc" Content="创建文档" Margin="3" Padding="10,6"
+                <Button x:Name="QuickDoc" Content="Create Doc" Margin="3" Padding="10,6"
                         Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
-                <Button x:Name="QuickWeather" Content="查天气" Margin="3" Padding="10,6"
+                <Button x:Name="QuickWeather" Content="Weather" Margin="3" Padding="10,6"
                         Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
-                <Button x:Name="QuickFiles" Content="查看文件" Margin="3" Padding="10,6"
+                <Button x:Name="QuickFiles" Content="List Files" Margin="3" Padding="10,6"
                         Background="#EFEFEF" Foreground="#6B6B6B" BorderThickness="1" BorderBrush="#E5E5E5"
                         FontSize="12" Cursor="Hand"/>
               </WrapPanel>
@@ -437,9 +530,9 @@ $xaml = @"
         <StackPanel x:Name="TypingPanel" Grid.Row="1" VerticalAlignment="Bottom"
                     Orientation="Horizontal" Margin="32,0,0,16" Visibility="Collapsed">
           <Border Background="#E8653A" CornerRadius="10" Width="28" Height="28" Margin="0,0,8,0">
-            <TextBlock Text="🦀" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <TextBlock Text="C" FontSize="14" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
           </Border>
-          <TextBlock x:Name="TypingText" Text="思考中..." FontSize="13" Foreground="#9E9E9E"
+          <TextBlock x:Name="TypingText" Text="Thinking..." FontSize="13" Foreground="#9E9E9E"
                      VerticalAlignment="Center"/>
         </StackPanel>
 
@@ -451,14 +544,17 @@ $xaml = @"
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Border Grid.Column="0" Background="#FFFFFF" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1"
-                    x:Name="InputBorder">
+            <Border Grid.Column="0" x:Name="InputBorder" Background="#FFFFFF" CornerRadius="12"
+                    BorderBrush="#E5E5E5" BorderThickness="1">
               <TextBox x:Name="InputBox" Background="Transparent" Foreground="#1A1A1A"
                        BorderThickness="0" Padding="14,10"
                        FontSize="14" AcceptsReturn="False" MaxLines="1"
-                       CaretBrush="#E8653A" VerticalContentAlignment="Center"/>
+                       CaretBrush="#E8653A" VerticalContentAlignment="Center"
+                       IsReadOnly="False" Focusable="True" IsTabStop="True"/>
             </Border>
-            <Button Grid.Column="1" x:Name="BtnSend" Style="{StaticResource SendBtn}" Content="➤" Margin="8,0,0,0"/>
+            <Button Grid.Column="1" x:Name="BtnSend" Style="{StaticResource SendBtn}" Margin="8,0,0,0">
+              <TextBlock Text="Send" FontSize="13" FontWeight="SemiBold"/>
+            </Button>
           </Grid>
         </Border>
       </Grid>
@@ -493,6 +589,11 @@ $btnMinimize = $window.FindName("BtnMinimize")
 $btnMaximize = $window.FindName("BtnMaximize")
 $btnNewChat = $window.FindName("BtnNewChat")
 $btnReset = $window.FindName("BtnReset")
+$btnSettings = $window.FindName("BtnSettings")
+$btnHistory = $window.FindName("BtnHistory")
+$historyPanel = $window.FindName("HistoryPanel")
+$historyList = $window.FindName("HistoryList")
+$historyScroll = $window.FindName("HistoryScroll")
 
 # Quick action buttons
 $quickSysInfo = $window.FindName("QuickSysInfo")
@@ -521,12 +622,21 @@ $btnMaximize.Add_Click({
     }
 })
 
-# Drag window
+# Drag window - EXCLUDE input controls from triggering drag
 $MainBorder.Add_MouseLeftButtonDown({
-    if ($_.OriginalSource -is [System.Windows.Controls.Border] -or
-        $_.OriginalSource -is [System.Windows.Controls.Grid] -or
-        $_.OriginalSource -is [System.Windows.Controls.StackPanel] -or
-        $_.OriginalSource -is [System.Windows.Controls.TextBlock]) {
+    $src = $_.OriginalSource
+    # Skip drag if clicking on any input/control element
+    if ($src -is [System.Windows.Controls.TextBox] -or
+        $src -is [System.Windows.Controls.PasswordBox] -or
+        $src -is [System.Windows.Controls.Button] -or
+        $src -is [System.Windows.Controls.ComboBox] -or
+        $src -is [System.Windows.Controls.ScrollViewer]) {
+        return
+    }
+    if ($src -is [System.Windows.Controls.Border] -or
+        $src -is [System.Windows.Controls.Grid] -or
+        $src -is [System.Windows.Controls.StackPanel] -or
+        $src -is [System.Windows.Controls.TextBlock]) {
         $window.DragMove()
     }
 })
@@ -537,7 +647,7 @@ $MainBorder.Add_MouseLeftButtonDown({
 
 function Add-MessageBubble {
     param(
-        [string]$Role,     # "user" or "assistant"
+        [string]$Role,
         [string]$Text,
         [array]$Tools = @()
     )
@@ -548,7 +658,7 @@ function Add-MessageBubble {
     $container = New-Object System.Windows.Controls.StackPanel
     $container.Margin = "0,0,0,16"
 
-    # Tool calls
+    # Tool calls display
     foreach ($tool in $Tools) {
         $toolBorder = New-Object System.Windows.Controls.Border
         $toolBorder.Background = "#F5F5F5"
@@ -557,14 +667,15 @@ function Add-MessageBubble {
         $toolBorder.CornerRadius = "8"
         $toolBorder.Margin = "0,0,0,4"
         $toolBorder.Padding = "8,6"
-        $toolBorder.Cursor = [System.Windows.Input.Cursors]::Hand
 
         $toolPanel = New-Object System.Windows.Controls.StackPanel
         $toolPanel.Orientation = [System.Windows.Controls.Orientation]::Horizontal
 
         $toolIcon = New-Object System.Windows.Controls.TextBlock
-        $toolIcon.Text = "⚙️"
+        $toolIcon.Text = ">"
         $toolIcon.FontSize = "12"
+        $toolIcon.FontWeight = "Bold"
+        $toolIcon.Foreground = "#E8653A"
         $toolIcon.Margin = "0,0,6,0"
         $toolIcon.VerticalAlignment = "Center"
 
@@ -576,7 +687,7 @@ function Add-MessageBubble {
         $toolName.VerticalAlignment = "Center"
 
         $toolStatus = New-Object System.Windows.Controls.TextBlock
-        $toolStatus.Text = " ✓"
+        $toolStatus.Text = " [ok]"
         $toolStatus.FontSize = "11"
         $toolStatus.Foreground = "#3ECF8E"
         $toolStatus.Margin = "6,0,0,0"
@@ -601,8 +712,10 @@ function Add-MessageBubble {
         $avatar.CornerRadius = "8"
         $avatar.Margin = "0,0,8,0"
         $avatarImg = New-Object System.Windows.Controls.TextBlock
-        $avatarImg.Text = "👤"
-        $avatarImg.FontSize = "14"
+        $avatarImg.Text = "U"
+        $avatarImg.FontSize = "13"
+        $avatarImg.FontWeight = "Bold"
+        $avatarImg.Foreground = "#6B6B6B"
         $avatarImg.HorizontalAlignment = "Center"
         $avatarImg.VerticalAlignment = "Center"
         $avatar.Child = $avatarImg
@@ -614,8 +727,10 @@ function Add-MessageBubble {
         $avatar.CornerRadius = "8"
         $avatar.Margin = "0,0,8,0"
         $avatarImg = New-Object System.Windows.Controls.TextBlock
-        $avatarImg.Text = "🦀"
-        $avatarImg.FontSize = "14"
+        $avatarImg.Text = "C"
+        $avatarImg.FontSize = "13"
+        $avatarImg.FontWeight = "Bold"
+        $avatarImg.Foreground = "White"
         $avatarImg.HorizontalAlignment = "Center"
         $avatarImg.VerticalAlignment = "Center"
         $avatar.Child = $avatarImg
@@ -639,8 +754,6 @@ function Add-MessageBubble {
 
     # Render content
     $contentPanel = New-Object System.Windows.Controls.StackPanel
-
-    # Simple markdown-to-XAML rendering
     $blocks = Render-MarkdownToBlocks -Text $Text -IsUser ($Role -eq "user")
 
     foreach ($block in $blocks) {
@@ -648,7 +761,6 @@ function Add-MessageBubble {
     }
 
     $bubble.Child = $contentPanel
-
     $row.Children.Add($avatar) | Out-Null
     $row.Children.Add($bubble) | Out-Null
 
@@ -679,10 +791,8 @@ function Render-MarkdownToBlocks {
     while ($i -lt $lines.Count) {
         $line = $lines[$i]
 
-        # Code block start/end
         if ($line -match '^```') {
             if ($inCodeBlock) {
-                # End code block
                 $codeBlock = New-Object System.Windows.Controls.Border
                 $codeBlock.Background = "#F5F5F5"
                 $codeBlock.BorderBrush = "#E5E5E5"
@@ -716,19 +826,17 @@ function Render-MarkdownToBlocks {
             continue
         }
 
-        # Skip empty lines
         if ($line.Trim() -eq "") {
             $i++
             continue
         }
 
-        # Headings
         if ($line -match '^### (.+)') {
             $tb = New-Object System.Windows.Controls.TextBlock
             $tb.Text = $Matches[1]
             $tb.FontSize = "14"
             $tb.FontWeight = "SemiBold"
-            $tb.Foreground = "#1A1A1A"
+            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#1A1A1A" }
             $tb.Margin = "0,8,0,2"
             $blocks += $tb
             $i++
@@ -739,17 +847,16 @@ function Render-MarkdownToBlocks {
             $tb.Text = $Matches[1]
             $tb.FontSize = "15"
             $tb.FontWeight = "SemiBold"
-            $tb.Foreground = "#1A1A1A"
+            $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#1A1A1A" }
             $tb.Margin = "0,8,0,2"
             $blocks += $tb
             $i++
             continue
         }
 
-        # List items
         if ($line -match '^[-*]\s+(.+)') {
             $tb = New-Object System.Windows.Controls.TextBlock
-            $tb.Text = "• $($Matches[1])"
+            $tb.Text = "  $($Matches[1])"
             $tb.FontSize = "13"
             $tb.Foreground = if ($IsUser) { "#FFFFFF" } else { "#1A1A1A" }
             $tb.TextWrapping = [System.Windows.TextWrapping]::Wrap
@@ -771,7 +878,6 @@ function Render-MarkdownToBlocks {
             continue
         }
 
-        # Regular text (strip markdown bold/italic markers for display)
         $display = $line -replace '\*\*(.+?)\*\*', '$1'
         $display = $display -replace '\*(.+?)\*', '$1'
         $display = $display -replace '`(.+?)`', '$1'
@@ -786,7 +892,6 @@ function Render-MarkdownToBlocks {
         $i++
     }
 
-    # Unclosed code block
     if ($inCodeBlock -and $codeLines.Count -gt 0) {
         $codeBlock = New-Object System.Windows.Controls.Border
         $codeBlock.Background = "#F5F5F5"
@@ -816,14 +921,254 @@ function Set-Processing {
     $inputBox.IsEnabled = -not $On
 
     if ($On) {
-        $lblStatus.Text = "思考中..."
+        $lblStatus.Text = "Thinking..."
         $lblStatus.Foreground = "#E8A030"
         $typingPanel.Visibility = [System.Windows.Visibility]::Visible
     } else {
-        $lblStatus.Text = "就绪"
+        $lblStatus.Text = "Ready"
         $lblStatus.Foreground = "#2EAE6D"
         $typingPanel.Visibility = [System.Windows.Visibility]::Collapsed
     }
+}
+
+# ============================================================
+# Settings Dialog
+# ============================================================
+
+function Show-SettingsDialog {
+    $settingsXaml = @"
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings" Height="500" Width="460"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+  <Border Background="#FAFAFA" CornerRadius="12" BorderBrush="#E5E5E5" BorderThickness="1">
+    <StackPanel Margin="28,24">
+      <TextBlock Text="Settings" FontSize="20" FontWeight="Bold" Foreground="#1A1A1A" Margin="0,0,0,20"/>
+
+      <TextBlock Text="LLM Provider" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <ComboBox x:Name="CmbProvider" FontSize="13" Height="30" Margin="0,0,0,12">
+        <ComboBoxItem Content="SiliconFlow"/>
+        <ComboBoxItem Content="Zhipu"/>
+        <ComboBoxItem Content="DeepSeek"/>
+        <ComboBoxItem Content="OpenAI"/>
+        <ComboBoxItem Content="Custom (OpenAI-compatible)"/>
+      </ComboBox>
+
+      <TextBlock Text="API Base URL" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <TextBox x:Name="TxtBaseUrl" FontSize="13" Height="28" Margin="0,0,0,12"
+               IsReadOnly="False" Focusable="True"/>
+
+      <TextBlock Text="Model Name" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <TextBox x:Name="TxtModel" FontSize="13" Height="28" Margin="0,0,0,12"
+               IsReadOnly="False" Focusable="True"/>
+
+      <TextBlock Text="API Key" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <PasswordBox x:Name="TxtApiKey" FontSize="13" Height="28" Margin="0,0,0,12"
+                    Focusable="True"/>
+
+      <TextBlock Text="Your Name" FontSize="13" FontWeight="SemiBold" Foreground="#1A1A1A" Margin="0,0,0,6"/>
+      <TextBox x:Name="TxtUserName" FontSize="13" Height="28" Margin="0,0,0,24"
+               IsReadOnly="False" Focusable="True"/>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button x:Name="BtnCancel" Content="Cancel" Style="{StaticResource DialogCancelBtn}" Margin="0,0,8,0"/>
+        <Button x:Name="BtnSave" Content="Save" Style="{StaticResource DialogBtn}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>
+"@
+
+    $dlg = [System.Windows.Markup.XamlReader]::Parse($settingsXaml)
+    $dlg.Owner = $window
+
+    $cmbProvider = $dlg.FindName("CmbProvider")
+    $txtBaseUrl = $dlg.FindName("TxtBaseUrl")
+    $txtModel = $dlg.FindName("TxtModel")
+    $txtApiKey = $dlg.FindName("TxtApiKey")
+    $txtUserName = $dlg.FindName("TxtUserName")
+    $btnSave = $dlg.FindName("BtnSave")
+    $btnCancel = $dlg.FindName("BtnCancel")
+
+    # Populate current settings
+    $providerMap = @{ "siliconflow" = 0; "zhipu" = 1; "deepseek" = 2; "openai" = 3; "custom" = 4 }
+    $curProvider = $Settings.llm.provider
+    if ($providerMap.ContainsKey($curProvider)) {
+        $cmbProvider.SelectedIndex = $providerMap[$curProvider]
+    }
+    $txtBaseUrl.Text = $Settings.llm.base_url
+    $txtModel.Text = $Settings.llm.model
+    $txtApiKey.Password = $Settings.llm.api_key
+    if ($Settings.user -and $Settings.user.name) {
+        $txtUserName.Text = $Settings.user.name
+    }
+
+    $script:SettingsSaved = $false
+
+    $btnCancel.Add_Click({ $dlg.Close() })
+
+    $btnSave.Add_Click({
+        $providers = @(
+            @{ name = "siliconflow"; base_url = "https://api.siliconflow.cn/v1"; model = "Qwen/Qwen3-8B" },
+            @{ name = "zhipu"; base_url = "https://open.bigmodel.cn/api/paas/v4/"; model = "glm-4-flash" },
+            @{ name = "deepseek"; base_url = "https://api.deepseek.com/v1"; model = "deepseek-chat" },
+            @{ name = "openai"; base_url = "https://api.openai.com/v1"; model = "gpt-4o-mini" },
+            @{ name = "custom"; base_url = ""; model = "" }
+        )
+        $idx = $cmbProvider.SelectedIndex
+        $provider = $providers[$idx]
+
+        $newApiKey = $txtApiKey.Password
+        if (-not $newApiKey) { $newApiKey = $Settings.llm.api_key }
+
+        $newModel = $txtModel.Text
+        if (-not $newModel) { $newModel = $provider.model }
+
+        $newBaseUrl = $txtBaseUrl.Text
+        if (-not $newBaseUrl) { $newBaseUrl = $provider.base_url }
+
+        # For preset providers, override base_url with default unless custom
+        if ($idx -ne 4) {
+            $newBaseUrl = $provider.base_url
+        }
+
+        $newSettings = @{
+            llm = @{
+                provider = $provider.name
+                api_key = $newApiKey
+                model = $newModel
+                base_url = $newBaseUrl
+                max_tokens = 1024
+                temperature = 0.7
+                repetition_penalty = 1.1
+            }
+            user = @{ name = $txtUserName.Text }
+        }
+
+        $newSettings | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $RootDir "config\settings.json") -Encoding UTF8
+
+        # Update in-memory settings
+        $script:Settings = $newSettings
+        $script:SettingsSaved = $true
+
+        $dlg.Close()
+    })
+
+    $dlg.ShowDialog() | Out-Null
+    return $script:SettingsSaved
+}
+
+# ============================================================
+# History Functions
+# ============================================================
+
+function Load-HistoryFiles {
+    $convDir = Join-Path $RootDir "memory\conversations"
+    $items = @()
+
+    if (Test-Path $convDir) {
+        $files = Get-ChildItem $convDir -Filter "*.md" -ErrorAction SilentlyContinue | Sort-Object Name -Descending
+        foreach ($file in $files) {
+            $content = Get-Content $file.FullName -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+            $preview = ""
+            if ($content -match '\*\*User:\*\*\s+(.+?)(?:\r?\n)') {
+                $preview = $Matches[1]
+                if ($preview.Length -gt 35) {
+                    $preview = $preview.Substring(0, 35) + "..."
+                }
+            }
+            $items += @{
+                date = $file.BaseName
+                path = $file.FullName
+                preview = $preview
+            }
+        }
+    }
+    return $items
+}
+
+function Refresh-HistoryList {
+    $historyList.Children.Clear()
+    $items = Load-HistoryFiles
+
+    if ($items.Count -eq 0) {
+        $noHistory = New-Object System.Windows.Controls.TextBlock
+        $noHistory.Text = "No history yet"
+        $noHistory.FontSize = "11"
+        $noHistory.Foreground = "#9E9E9E"
+        $noHistory.Margin = "8,12"
+        $historyList.Children.Add($noHistory) | Out-Null
+        return
+    }
+
+    foreach ($item in $items) {
+        $btn = New-Object System.Windows.Controls.Button
+        $btn.Style = $window.Resources["HistoryItemBtn"]
+
+        $sp = New-Object System.Windows.Controls.StackPanel
+
+        $dateText = New-Object System.Windows.Controls.TextBlock
+        $dateText.Text = $item.date
+        $dateText.FontSize = "12"
+        $dateText.FontWeight = "SemiBold"
+        $dateText.Foreground = "#1A1A1A"
+        $sp.Children.Add($dateText) | Out-Null
+
+        if ($item.preview) {
+            $previewText = New-Object System.Windows.Controls.TextBlock
+            $previewText.Text = $item.preview
+            $previewText.FontSize = "11"
+            $previewText.Foreground = "#9E9E9E"
+            $previewText.TextTrimming = "CharacterEllipsis"
+            $previewText.MaxWidth = "170"
+            $sp.Children.Add($previewText) | Out-Null
+        }
+
+        $btn.Content = $sp
+        $filePath = $item.path
+        $btn.Add_Click({
+            param($sender, $e)
+            Load-HistoryConversation -FilePath $sender.Tag
+        })
+        $btn.Tag = $filePath
+        $historyList.Children.Add($btn) | Out-Null
+    }
+}
+
+function Load-HistoryConversation {
+    param([string]$FilePath)
+
+    if (-not (Test-Path $FilePath)) { return }
+
+    $content = Get-Content $FilePath -Raw -Encoding UTF8
+
+    # Clear current chat display
+    $msgPanel.Children.Clear()
+    $welcomePanel.Visibility = [System.Windows.Visibility]::Collapsed
+
+    # Parse conversation entries separated by "## HH:MM:SS"
+    $sections = $content -split '## \d{2}:\d{2}:\d{2}' | Where-Object { $_.Trim() -ne "" }
+
+    foreach ($section in $sections) {
+        # Extract user message
+        if ($section -match '\*\*User:\*\*\s+(.+?)(?=\r?\n\r?\n\*\*Crabby:|\Z)') {
+            $userMsg = $Matches[1].Trim()
+            Add-MessageBubble -Role "user" -Text $userMsg
+        }
+        # Extract assistant response
+        if ($section -match '\*\*Crabby:\*\*\s+([\s\S]+?)(?=\r?\n\r?\n|\Z)') {
+            $assistantMsg = $Matches[1].Trim()
+            Add-MessageBubble -Role "assistant" -Text $assistantMsg
+        }
+    }
+
+    $msgScroll.ScrollToEnd()
+    $lblSubtitle.Text = "Viewing: " + (Split-Path $FilePath -LeafBase)
+
+    # Hide history panel after selecting
+    $historyPanel.Visibility = [System.Windows.Visibility]::Collapsed
 }
 
 # ============================================================
@@ -840,12 +1185,10 @@ function Send-ChatMessage {
     $script:IsProcessing = $true
     Set-Processing $true
 
-    # Add user message
     Add-MessageBubble -Role "user" -Text $Message
-
     $script:Conversation += @{ role = "user"; content = $Message }
 
-    # Process in background
+    # Process in background runspace
     $runspace = [runspacefactory]::CreateRunspace()
     $runspace.Open()
     $runspace.SessionStateProxy.SetVariable("Settings", $Settings)
@@ -917,7 +1260,7 @@ function Send-ChatMessage {
 
                 Add-MessageBubble -Role "assistant" -Text $msg -Tools $tools
 
-                # Save conversation
+                # Save conversation to file
                 Save-CrabbyConversation -RootDir $RootDir -UserMessage $Message -AssistantResponse $msg
 
                 # Trim conversation if too long
@@ -928,7 +1271,7 @@ function Send-ChatMessage {
                 }
             }
             catch {
-                Add-MessageBubble -Role "assistant" -Text "❌ 出错了: $($_.Exception.Message)"
+                Add-MessageBubble -Role "assistant" -Text "Error: $($_.Exception.Message)"
             }
             finally {
                 $ps.Dispose()
@@ -948,18 +1291,24 @@ function Send-ChatMessage {
 # Event Bindings
 # ============================================================
 
-# Send button
+# Send button click
 $btnSend.Add_Click({
-    Send-ChatMessage -Message $inputBox.Text
-    $inputBox.Text = ""
+    $text = $inputBox.Text
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        Send-ChatMessage -Message $text
+        $inputBox.Clear()
+    }
 })
 
-# Enter to send
-$inputBox.Add_KeyDown({
-    if ($_.Key -eq "Enter" -and -not $_.ShiftKey) {
+# Enter to send - use PreviewKeyDown for reliable key capture
+$inputBox.Add_PreviewKeyDown({
+    if ($_.Key -eq "Return" -and -not $_.KeyboardDevice.Modifiers.HasFlag([System.Windows.Input.ModifierKeys]::Shift)) {
         $_.Handled = $true
-        Send-ChatMessage -Message $inputBox.Text
-        $inputBox.Text = ""
+        $text = $inputBox.Text
+        if (-not [string]::IsNullOrWhiteSpace($text)) {
+            Send-ChatMessage -Message $text
+            $inputBox.Clear()
+        }
     }
 })
 
@@ -974,32 +1323,89 @@ $inputBox.Add_LostFocus({
 # New chat
 $btnNewChat.Add_Click({
     $script:Conversation = @(
-        @{ role = "system"; content = $script:Conversation[0].content }
+        @{ role = "system"; content = (Build-SystemPrompt) }
     )
     $msgPanel.Children.Clear()
     $msgPanel.Children.Add($welcomePanel) | Out-Null
     $welcomePanel.Visibility = [System.Windows.Visibility]::Visible
+    $lblSubtitle.Text = "Your local AI assistant"
+    $historyPanel.Visibility = [System.Windows.Visibility]::Collapsed
+    $inputBox.Focus()
 })
 
-# Reset context
+# Reset context (same as new chat)
 $btnReset.Add_Click({
     $script:Conversation = @(
-        @{ role = "system"; content = $script:Conversation[0].content }
+        @{ role = "system"; content = (Build-SystemPrompt) }
     )
     $msgPanel.Children.Clear()
     $msgPanel.Children.Add($welcomePanel) | Out-Null
     $welcomePanel.Visibility = [System.Windows.Visibility]::Visible
+    $lblSubtitle.Text = "Your local AI assistant"
+    $historyPanel.Visibility = [System.Windows.Visibility]::Collapsed
+    $inputBox.Focus()
 })
 
-# Quick actions
-$quickSysInfo.Add_Click({ Send-ChatMessage -Message "查看当前系统信息" })
-$quickDoc.Add_Click({ Send-ChatMessage -Message "帮我创建一个待办事项文档" })
-$quickWeather.Add_Click({ Send-ChatMessage -Message "今天天气怎么样" })
-$quickFiles.Add_Click({ Send-ChatMessage -Message "列出桌面上的文件" })
+# Settings button
+$btnSettings.Add_Click({
+    $saved = Show-SettingsDialog
+    if ($saved) {
+        # Reload settings from disk
+        $settingsPath = Join-Path $RootDir "config\settings.json"
+        $raw = Get-Content $settingsPath -Raw -Encoding UTF8
+        $script:Settings = $raw | ConvertFrom-Json
+
+        # Update model label
+        $lblModel.Text = $script:Settings.llm.model
+
+        # Rebuild system prompt with new settings
+        $script:Conversation = @(
+            @{ role = "system"; content = (Build-SystemPrompt) }
+        )
+
+        Add-MessageBubble -Role "assistant" -Text "Settings saved. New conversation will use the updated configuration."
+    }
+})
+
+# History button - toggle panel
+$btnHistory.Add_Click({
+    if ($historyPanel.Visibility -eq [System.Windows.Visibility]::Visible) {
+        $historyPanel.Visibility = [System.Windows.Visibility]::Collapsed
+    } else {
+        Refresh-HistoryList
+        $historyPanel.Visibility = [System.Windows.Visibility]::Visible
+    }
+})
+
+# Quick actions - populate input box and focus
+$quickSysInfo.Add_Click({
+    $inputBox.Text = "Show me the current system information"
+    $inputBox.Focus()
+})
+$quickDoc.Add_Click({
+    $inputBox.Text = "Create a todo list document for me"
+    $inputBox.Focus()
+})
+$quickWeather.Add_Click({
+    $inputBox.Text = "What's the weather like today"
+    $inputBox.Focus()
+})
+$quickFiles.Add_Click({
+    $inputBox.Text = "List files on my desktop"
+    $inputBox.Focus()
+})
 
 # ============================================================
 # Run
 # ============================================================
+
+# Ensure input box gets focus when window loads
+$window.Add_Loaded({
+    Start-Sleep -Milliseconds 100
+    $inputBox.Dispatcher.Invoke([Action]{
+        $inputBox.Focus()
+    }, [System.Windows.Threading.DispatcherPriority]::Loaded)
+})
 
 $inputBox.Focus()
 $window.ShowDialog() | Out-Null

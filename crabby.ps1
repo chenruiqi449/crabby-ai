@@ -38,7 +38,7 @@ $UserProfile = Get-CrabbyUserProfile -RootDir $RootDir
 # Banner
 function Show-Banner {
     Write-Host ""
-    Write-Host "  🦀 Crabby AI v1.1" -ForegroundColor DarkCyan
+    Write-Host "  🦀 Crabby AI v1.4" -ForegroundColor DarkCyan
     Write-Host "  ─────────────────────────────" -ForegroundColor DarkGray
     Write-Host "  Model: $($Settings.llm.model)" -ForegroundColor Gray
     Write-Host "  Provider: $($Settings.llm.provider)" -ForegroundColor Gray

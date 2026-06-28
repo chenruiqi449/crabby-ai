@@ -301,7 +301,7 @@ try {
                     $status = @{
                         model = $Settings.llm.model
                         provider = $Settings.llm.provider
-                        version = "1.2"
+                        version = "1.4"
                         sessions = $script:Conversations.Count
                     }
                     Send-JsonResponse -Response $response -Data $status

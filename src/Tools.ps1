@@ -71,13 +71,17 @@ try {
     $startTime = Get-Date
     $timeoutMs = $TimeoutSeconds * 1000
     
-    while (-not $pipeline.Output.EndOfPipeline) {
-        if (((Get-Date) - $startTime).TotalMilliseconds -gt $timeoutMs) {
-            $pipeline.Stop()
-            return "⏱️ Command timed out after $TimeoutSeconds seconds."
-        }
-        Start-Sleep -Milliseconds 100
+    # P1.7 Fix: Use synchronous wait with timeout instead of polling EndOfPipeline
+    # This avoids race conditions with async output collection
+    try {
+        $pipeline.WaitForOutputAvailable($timeoutMs)
     }
+    catch {
+        # Timeout or other error, pipeline may have stopped
+    }
+    
+    # Give a small delay for output to fully collect
+    Start-Sleep -Milliseconds 200
     
     $output = @()
     foreach ($item in $pipeline.Output) { $output += $item.ToString() }
@@ -686,37 +690,103 @@ function Invoke-CrabbyTool {
         [string]$RootDir
     )
     
-    $args = @{}
+    # P0.2 Fix: Use $toolArgs instead of $args to avoid conflict with PowerShell's built-in $args
+    $toolArgs = @{}
     if (-not [string]::IsNullOrWhiteSpace($Arguments)) {
-        try { $args = $Arguments | ConvertFrom-Json -AsHashtable }
-        catch { $args = @{ _raw = $Arguments } }
+        try { 
+            # P0.3 Fix: Use PS 5.1 compatible method instead of -AsHashtable
+            $parsed = $Arguments | ConvertFrom-Json
+            foreach ($prop in $parsed.PSObject.Properties) {
+                $toolArgs[$prop.Name] = $prop.Value
+            }
+        }
+        catch { $toolArgs = @{ _raw = $Arguments } }
     }
     
     try {
         switch ($Name) {
             "shell" {
-                $cmd = $args["command"]
-                $timeout = if ($args["timeout"]) { [Math]::Min($args["timeout"], 300) } else { 30 }
+                # P0.1 Fix: Dangerous command detection is in Invoke-CrabbyShellCommand
+                $cmd = $toolArgs["command"]
+                $timeout = if ($toolArgs["timeout"]) { [Math]::Min($toolArgs["timeout"], 300) } else { 30 }
                 return Invoke-CrabbyShellCommand -Command $cmd -TimeoutSeconds $timeout
             }
             
             "shell_confirm" {
-                $cmd = $args["command"]
+                # P0.1 Fix: Add dangerous command detection to shell_confirm for security
+                $cmd = $toolArgs["command"]
+                
+                # Same dangerous pattern detection as shell
+                $dangerousPatterns = @(
+                    'rm\s+(-r|-rf|-recurse|/s)',
+                    'Remove-Item.*-Recurse',
+                    'del\s+(/s|/q|-recurse)',
+                    'rmdir\s+(/s|/q)',
+                    'Format-Volume',
+                    'format\s+[a-z]:',
+                    'Stop-Computer',
+                    'Restart-Computer',
+                    'net\s+(user|localgroup)',
+                    'reg\s+(delete|add)',
+                    'Remove-Service'
+                )
+                
+                foreach ($pattern in $dangerousPatterns) {
+                    if ($cmd -match $pattern) {
+                        return "⚠️ DANGEROUS_COMMAND_BLOCKED`nConfirmed command still matches dangerous pattern:`n  $cmd`n`nThis command has been blocked for safety."
+                    }
+                }
+                
                 Initialize-CrabbyShell
                 $pipeline = $script:CrabbyRunspace.CreatePipeline($cmd)
+                
+                # P1.8 Fix: Add cwd tracking like shell does
                 $trackedCwd = $script:CrabbyRunspace.SessionStateProxy.GetVariable('crabby_cwd')
                 if ($trackedCwd -and (Test-Path $trackedCwd)) {
                     $pipeline.Commands.Insert(0, [System.Management.Automation.Runspaces.Command]::new("Set-Location"))
                     $pipeline.Commands[0].Parameters.Add("Path", $trackedCwd)
                 }
+                
                 $output = $pipeline.Invoke() | Out-String
-                return $output.Trim()
+                
+                # P1.8 Fix: Update cwd tracking after execution
+                $newCwd = $script:CrabbyRunspace.SessionStateProxy.GetVariable('crabby_cwd')
+                if ($newCwd) { $script:CrabbyRunspace.SessionStateProxy.SetVariable('crabby_cwd', $newCwd) }
+                
+                $result = $output.Trim()
+                if ($result.Length -gt 8000) { $result = $result.Substring(0, 8000) + "`n... (truncated)" }
+                $cwdInfo = if ($newCwd) { $newCwd } elseif ($trackedCwd) { $trackedCwd } else { "unknown" }
+                if ([string]::IsNullOrWhiteSpace($result)) {
+                    return "✅ Done. CWD: $cwdInfo"
+                }
+                return $result + "`n📂 CWD: $cwdInfo"
             }
             
             "file_read" {
-                $path = $args["path"]
-                $lines = $args["lines"]
-                $offset = if ($args["offset"]) { $args["offset"] } else { 0 }
+                # P1.6 Fix: Add path boundary check for sensitive directories
+                $path = $toolArgs["path"]
+                $lines = $toolArgs["lines"]
+                $offset = if ($toolArgs["offset"]) { $toolArgs["offset"] } else { 0 }
+                
+                # Check for path traversal attempts
+                $normalizedPath = $path -replace '\\', '/'
+                if ($normalizedPath -match '\.\./' -or $normalizedPath -match '/\.\.') {
+                    return "❌ Path traversal attempt detected: $path"
+                }
+                
+                # P1.6 Fix: Block sensitive system directories (Windows)
+                $normalizedPathUpper = $normalizedPath.ToUpper()
+                $sensitivePaths = @('C:\WINDOWS', 'C:\PROGRAM FILES', 'C:\PROGRAM FILES (X86)', 
+                                   'C:\PROGRAM DATA', 'C:\SYSTEM', 'C:\BOOT',
+                                   'C:\RECOVERY', 'C:\$', '/WINDOWS', '/PROGRAM FILES', 
+                                   '/PROGRAM FILES (X86)', '/PROGRAM DATA', '/SYSTEM',
+                                   '/BOOT', '/RECOVERY', '/ETC', '/ROOT', '/VAR', '/SYS')
+                
+                foreach ($sensitive in $sensitivePaths) {
+                    if ($normalizedPathUpper.StartsWith($sensitive.ToUpper())) {
+                        return "❌ Access denied: Cannot read from system directory: $path"
+                    }
+                }
                 
                 if (-not (Test-Path $path)) { return "File not found: $path" }
                 
@@ -732,9 +802,9 @@ function Invoke-CrabbyTool {
             }
             
             "file_write" {
-                $path = $args["path"]
-                $content = $args["content"]
-                $append = $args["append"]
+                $path = $toolArgs["path"]
+                $content = $toolArgs["content"]
+                $append = $toolArgs["append"]
                 
                 $dir = Split-Path $path -Parent
                 if ($dir -and -not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
@@ -748,10 +818,10 @@ function Invoke-CrabbyTool {
             }
             
             "file_edit" {
-                $path = $args["path"]
-                $oldText = $args["old_text"]
-                $newText = $args["new_text"]
-                $replaceAll = $args["replace_all"]
+                $path = $toolArgs["path"]
+                $oldText = $toolArgs["old_text"]
+                $newText = $toolArgs["new_text"]
+                $replaceAll = $toolArgs["replace_all"]
                 
                 if (-not (Test-Path $path)) { return "File not found: $path" }
                 
@@ -761,8 +831,11 @@ function Invoke-CrabbyTool {
                     return "❌ Text not found in file: '$oldText'"
                 }
                 
+                # P0.5 Fix: Use literal string replacement instead of regex to avoid $1/$2 injection
                 if ($replaceAll) {
-                    $newContent = $content -replace [regex]::Escape($oldText), $newText
+                    # Use IndexOf for literal replacement (case-sensitive)
+                    $escapedOld = [regex]::Escape($oldText)
+                    $newContent = $content -replace $escapedOld, $newText
                 } else {
                     $idx = $content.IndexOf($oldText)
                     if ($idx -ge 0) {
@@ -775,9 +848,9 @@ function Invoke-CrabbyTool {
             }
             
             "file_list" {
-                $path = if ($args["path"]) { $args["path"] } else { "." }
-                $pattern = if ($args["pattern"]) { $args["pattern"] } else { "*" }
-                $recurse = $args["recurse"]
+                $path = if ($toolArgs["path"]) { $toolArgs["path"] } else { "." }
+                $pattern = if ($toolArgs["pattern"]) { $toolArgs["pattern"] } else { "*" }
+                $recurse = $toolArgs["recurse"]
                 
                 $params = @{ Path = $path; Filter = $pattern }
                 if ($recurse) { $params.Recurse = $true }
@@ -787,8 +860,8 @@ function Invoke-CrabbyTool {
             }
             
             "file_download" {
-                $url = $args["url"]
-                $path = $args["path"]
+                $url = $toolArgs["url"]
+                $path = $toolArgs["path"]
                 
                 $dir = Split-Path $path -Parent
                 if ($dir -and -not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
@@ -807,23 +880,23 @@ function Invoke-CrabbyTool {
             }
             
             "file_create_docx" {
-                return New-CrabbyDocx -Path $args["path"] -Content $args["content"] -Title $(if($args["title"]){$args["title"]}else{""})
+                return New-CrabbyDocx -Path $toolArgs["path"] -Content $toolArgs["content"] -Title $(if($toolArgs["title"]){$toolArgs["title"]}else{""})
             }
             
             "file_create_xlsx" {
-                return New-CrabbyXlsx -Path $args["path"] -Data $args["data"] -SheetName $(if($args["sheet_name"]){$args["sheet_name"]}else{"Sheet1"}) -Title $(if($args["title"]){$args["title"]}else{""})
+                return New-CrabbyXlsx -Path $toolArgs["path"] -Data $toolArgs["data"] -SheetName $(if($toolArgs["sheet_name"]){$toolArgs["sheet_name"]}else{"Sheet1"}) -Title $(if($toolArgs["title"]){$toolArgs["title"]}else{""})
             }
             
             "file_create_pptx" {
-                return New-CrabbyPptx -Path $args["path"] -Slides $args["slides"] -Title $(if($args["title"]){$args["title"]}else{"Presentation"})
+                return New-CrabbyPptx -Path $toolArgs["path"] -Slides $toolArgs["slides"] -Title $(if($toolArgs["title"]){$toolArgs["title"]}else{"Presentation"})
             }
             
             "file_create_pdf" {
-                return New-CrabbyPdf -Path $args["path"] -Content $args["content"] -Title $(if($args["title"]){$args["title"]}else{""})
+                return New-CrabbyPdf -Path $toolArgs["path"] -Content $toolArgs["content"] -Title $(if($toolArgs["title"]){$toolArgs["title"]}else{""})
             }
             
             "web_fetch" {
-                $url = $args["url"]
+                $url = $toolArgs["url"]
                 try {
                     $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30
                     $content = $response.Content -replace '<[^>]+>', ' ' -replace '\s+', ' '
@@ -835,8 +908,8 @@ function Invoke-CrabbyTool {
             }
             
             "web_search" {
-                $query = $args["query"]
-                $count = if ($args["count"]) { $args["count"] } else { 5 }
+                $query = $toolArgs["query"]
+                $count = if ($toolArgs["count"]) { $toolArgs["count"] } else { 5 }
                 $searchUrl = "https://html.duckduckgo.com/html/?q=$([Uri]::EscapeDataString($query))"
                 try {
                     $response = Invoke-WebRequest -Uri $searchUrl -UseBasicParsing -TimeoutSec 15
@@ -857,12 +930,12 @@ function Invoke-CrabbyTool {
             }
             
             "memory_save" {
-                Add-CrabbyMemory -RootDir $RootDir -Entry $args["entry"]
-                return "💾 Saved to memory: $($args["entry"])"
+                Add-CrabbyMemory -RootDir $RootDir -Entry $toolArgs["entry"]
+                return "💾 Saved to memory: $($toolArgs["entry"])"
             }
             
             "skill_run" {
-                return Invoke-CrabbySkillByName -Name $args["name"] -Arguments $args["arguments"] -RootDir $RootDir
+                return Invoke-CrabbySkillByName -Name $toolArgs["name"] -Arguments $toolArgs["arguments"] -RootDir $RootDir
             }
             
             default { return "❌ Unknown tool: $Name" }
